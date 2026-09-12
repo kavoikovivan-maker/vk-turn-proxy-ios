@@ -465,6 +465,18 @@ do {
           "and UplinkChunk.swift is gone rather than dormant")
 }
 
+do {
+    let provider = source("VKTurnProxy/PacketTunnel/PacketTunnelProvider.swift")
+    check(provider.contains("directReady = false"),
+          "🚨 stopTunnel resets the DIRECT-ready latch so a later session cannot inherit stale route state")
+    check(provider.contains("directSync = DirectRouteSync(applied: false)"),
+          "🚨 stopTunnel resets the DIRECT state machine so a later session cannot inherit queued route work")
+    check(provider.contains("directPendingBeforeReady = nil"),
+          "🚨 stopTunnel clears deferred startup intents so a stale request is not replayed after a reattach")
+    check(provider.contains("directWaiters.removeAll()"),
+          "🚨 stopTunnel clears queued DIRECT replies so a prior session cannot answer a new one")
+}
+
 print("DirectRouteSync — one apply at a time, last intent wins")
 
 // 18. 🚨🚨 THE DEFECT THIS TYPE EXISTS FOR, AND IT IS THE ONE A FLAG CANNOT SEE.

@@ -758,6 +758,24 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         stopAuthErrorWatchdog()
         stopCsqttWatchdog()
 
+        // Reset per-session route state before any restart can observe it. A
+        // stale DIRECT/route machine from the previous session can otherwise be
+        // replayed on the next one even though the new tunnel has not started,
+        // especially on extension reloads where the provider instance may be
+        // recycled while the profile and queued callbacks still belong to the
+        // old session. These values are all session-scoped and must be
+        // re-established by the next startTunnel call.
+        directSync = DirectRouteSync(applied: false)
+        directReady = false
+        directPendingBeforeReady = nil
+        directWaiters.removeAll()
+        lastSettingsAddress = ""
+        lastSettingsDNS = ""
+        lastSettingsMTU = ""
+        lastSettingsRemote = "10.0.0.1"
+        attachedTunFd = -1
+        attachedTunName = ""
+
         // Safety net: ensure completionHandler is called exactly once
         // within 3 seconds even if wgTurnOff hangs. Without this, iOS
         // waits its full 20s NESMVPNSessionStateStopping timeout + 5s
