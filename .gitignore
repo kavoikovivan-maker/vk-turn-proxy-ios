@@ -9,6 +9,13 @@ build_output/
 /tools/turn_srtp_server/turn_srtp_server
 /tools/turn_srtp_test/turn_srtp_test
 
+# Local-only connection data and screenshots: never commit real keys or photos.
+/iphone-auto-connect-template.json
+/IMG_*.jpeg
+/IMG_*.jpg
+/IMG_*.png
+
+
 # Xcode
 *.xcuserdata
 # Per-user Xcode dir inside .xcodeproj / .xcworkspace (dir, not file).
