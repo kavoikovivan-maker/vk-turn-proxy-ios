@@ -19,15 +19,15 @@ if [ ! -d "WireGuardBridge/build/WireGuardTURN.xcframework" ]; then
   make -C WireGuardBridge xcframework
 fi
 
-echo "==> Generating Xcode project from project.yml"
-xcodegen generate
+echo "==> Generating Xcode project from VKTurnProxy/project.yml"
+xcodegen generate --spec VKTurnProxy/project.yml --project VKTurnProxy
 
 echo "==> Listing Xcode targets"
-xcodebuild -list -project VKTurnProxy.xcodeproj
+xcodebuild -list -project VKTurnProxy/VKTurnProxy.xcodeproj
 
 echo "==> Building app without code signing"
 xcodebuild \
-  -project VKTurnProxy.xcodeproj \
+  -project VKTurnProxy/VKTurnProxy.xcodeproj \
   -scheme VKTurnProxy \
   -destination 'generic/platform=iOS' \
   -configuration Release \

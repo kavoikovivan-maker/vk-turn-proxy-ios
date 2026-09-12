@@ -26,7 +26,7 @@ jobs:
         run: make -C WireGuardBridge xcframework
 
       - name: Generate Xcode project
-        run: xcodegen generate
+        run: xcodegen generate --spec VKTurnProxy/project.yml --project VKTurnProxy
 
       - name: Import signing certificate
         env:
@@ -51,7 +51,7 @@ jobs:
       - name: Archive app
         run: |
           xcodebuild \
-            -project VKTurnProxy.xcodeproj \
+            -project VKTurnProxy/VKTurnProxy.xcodeproj \
             -scheme VKTurnProxy \
             -configuration Release \
             -sdk iphoneos \

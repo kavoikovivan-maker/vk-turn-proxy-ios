@@ -28,7 +28,7 @@ jobs:
         run: make -C WireGuardBridge xcframework
 
       - name: Generate Xcode project
-        run: xcodegen generate
+        run: xcodegen generate --spec VKTurnProxy/project.yml --project VKTurnProxy
 
       - name: Build app (unsigned, CI validation)
         run: ./scripts/ci/build_ios.sh
