@@ -27,6 +27,17 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate --spec VKTurnProxy/project.yml --project VKTurnProxy
 
+      - name: Validate unsigned build config on macOS runner
+        run: |
+          xcodebuild \
+            -project VKTurnProxy/VKTurnProxy.xcodeproj \
+            -scheme VKTurnProxy \
+            -configuration Release \
+            -sdk iphoneos \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build
+
       - name: Import signing certificate
         env:
           CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}

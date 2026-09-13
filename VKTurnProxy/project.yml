@@ -9,8 +9,6 @@ settings:
   base:
     DEVELOPMENT_TEAM: CDMQ33VFQC
     CODE_SIGN_STYLE: Automatic
-    CODE_SIGNING_ALLOWED: NO
-    CODE_SIGNING_REQUIRED: NO
 
 targets:
   VKTurnProxy:
