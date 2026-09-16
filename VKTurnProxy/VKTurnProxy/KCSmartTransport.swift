@@ -63,14 +63,19 @@ final class KCSmartTransportManager: ObservableObject {
             KCTransportHealth(
                 kind: kind,
                 isConfigured: kind == .vk,
-                // Do not claim VK is reachable until the running tunnel returns
-                // a real stats sample. This avoids a fake green state at launch.
+                // Reachability now comes from real tunnel telemetry rather than
+                // a hard-coded optimistic state.
                 isReachable: false,
                 latencyMs: nil,
                 consecutiveFailures: 0,
                 lastUpdated: nil
             )
         }
+
+        // VK is the first concrete transport adapter. Binding here means every
+        // UI consumer sees the same live state without needing to remember an
+        // extra setup call.
+        bindVK(to: TunnelManager.shared)
     }
 
     var selectedDisplayName: String { selected.displayName }
@@ -90,11 +95,8 @@ final class KCSmartTransportManager: ObservableObject {
             .kind
     }
 
-    /// Connect the already-working VK tunnel to Smart Route using real runtime
-    /// telemetry from TunnelManager. TURN RTT is measured by the tunnel engine;
-    /// statsReceivedOnce prevents the all-zero placeholder from being treated as
-    /// a measurement, and statsChannelDown removes VK from eligibility if IPC
-    /// telemetry stops arriving while connected.
+    /// Feed the already-working VK/TURN tunnel into Smart Route using real
+    /// runtime telemetry. TURN RTT is measured by the tunnel engine itself.
     func bindVK(to tunnel: TunnelManager) {
         guard !vkTunnelBound else { return }
         vkTunnelBound = true
