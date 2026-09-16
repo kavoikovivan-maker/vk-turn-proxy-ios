@@ -3,8 +3,8 @@ import NetworkExtension
 
 struct KCShieldRootView: View {
     @StateObject private var tunnel = TunnelManager.shared
-    @ObservedObject private var store = ServerStore.shared
     @StateObject private var transport = KCSmartTransportManager.shared
+    @State private var configErrorMessage: String?
 
     private let canvas = Color(red: 0.945, green: 0.948, blue: 0.952)
     private let surface = Color.white.opacity(0.82)
@@ -107,15 +107,18 @@ struct KCShieldRootView: View {
             .disabled(tunnel.status == .disconnecting)
 
             VStack(spacing: 5) {
-                Text(tunnel.serverCaption.subtitle)
-                    .font(.headline)
-                    .foregroundColor(graphite)
-                    .multilineTextAlignment(.center)
+                KCActiveServerCaption(tunnel: tunnel, graphite: graphite)
 
                 if let message = tunnel.errorMessage, !message.isEmpty {
                     Text(message)
                         .font(.caption)
                         .foregroundColor(.red)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 8)
+                } else if let configErrorMessage {
+                    Text(configErrorMessage)
+                        .font(.caption)
+                        .foregroundColor(.orange)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 8)
                 } else {
@@ -139,15 +142,15 @@ struct KCShieldRootView: View {
     private var quickActions: some View {
         HStack(spacing: 12) {
             NavigationLink(destination: SpeedTestView(tunnel: tunnel)) {
-                quickAction(title: "Speed", icon: "gauge.with.dots.needle.50percent")
+                quickAction(title: "Speed", icon: "speedometer")
             }
 
             NavigationLink(destination: KCNetworkHealthView(tunnel: tunnel)) {
                 quickAction(title: "Health", icon: "waveform.path.ecg")
             }
 
-            NavigationLink(destination: SettingsView()) {
-                quickAction(title: "Route", icon: "point.3.connected.trianglepath.dotted")
+            NavigationLink(destination: KCSmartRouteView()) {
+                quickAction(title: "Route", icon: "arrow.left.arrow.right")
             }
         }
     }
@@ -187,7 +190,7 @@ struct KCShieldRootView: View {
                 Spacer()
                 metric(label: "Tunnel", value: tunnel.status == .connected ? "Active" : "Standby")
                 Spacer()
-                metric(label: "Server", value: store.activeServer.serverName.isEmpty ? "Default" : store.activeServer.serverName)
+                KCActiveServerMetric(graphite: graphite)
             }
         }
         .padding(18)
@@ -263,17 +266,86 @@ struct KCShieldRootView: View {
 
     private func toggleTunnel() {
         if tunnel.status == .connected || tunnel.status == .connecting || tunnel.preBootstrapInProgress {
+            configErrorMessage = nil
             SharedLogger.shared.log("[K&C UI] user requested disconnect")
             tunnel.disconnect()
             return
         }
 
+        let active = ServerStore.shared.activeServer
+        let vkLink = UserDefaults.standard.string(forKey: "vkLink") ?? ""
+        if let validationError = blockingValidationError(server: active, vkLink: vkLink) {
+            configErrorMessage = validationError
+            SharedLogger.shared.log("[K&C UI] connect blocked by validation: \(validationError)")
+            return
+        }
+
+        configErrorMessage = nil
         transport.chooseBestAvailable()
-        let active = store.activeServer
         SharedLogger.shared.log("[K&C UI] connect via \(transport.selectedDisplayName): \(active.serverName) [\(active.modeLabel)]")
         let config = TunnelConfig.make(for: active)
         Task {
             await tunnel.connect(config: config)
+        }
+    }
+
+    private func blockingValidationError(server s: ServerProfile, vkLink: String) -> String? {
+        var issues: [ConfigValidation.Issue?] = [
+            ConfigValidation.vkLink(vkLink),
+            ConfigValidation.peerAddress(s.peerAddress),
+            ConfigValidation.turnOverride(s.turnServerOverride),
+        ]
+
+        if s.useCsqtt {
+            issues.append(ConfigValidation.csqttPassword(s.csqttPassword))
+            issues.append(ConfigValidation.csqttDeviceID(s.csqttDeviceID))
+        } else if s.useWrapA {
+            issues.append(ConfigValidation.wrapAPassword(s.wrapAPassword))
+        } else {
+            issues.append(ConfigValidation.wgKey(s.privateKey, label: "Private key", required: true))
+            issues.append(ConfigValidation.wgKey(s.peerPublicKey, label: "Peer public key", required: true))
+            issues.append(ConfigValidation.wgKey(s.presharedKey, label: "Preshared key", required: false))
+            issues.append(ConfigValidation.tunnelAddress(s.tunnelAddress))
+            if (!s.useSrtp && s.useWrap) || s.useWrapS {
+                issues.append(ConfigValidation.wrapKeyHex(s.wrapKeyHex))
+            }
+        }
+
+        return issues.compactMap { $0 }.first(where: { $0.severity == .error })?.message
+    }
+}
+
+/// ServerStore must stay below the NavigationView host. The legacy screen learned
+/// this the hard way: observing it at the root can pop pushed screens while a
+/// server edit publishes changes. These small children keep the K&C screen live
+/// without making the navigation host subscribe to ServerStore.
+private struct KCActiveServerCaption: View {
+    @ObservedObject private var store = ServerStore.shared
+    let tunnel: TunnelManager
+    let graphite: Color
+
+    var body: some View {
+        Text(tunnel.serverCaption.subtitle)
+            .font(.headline)
+            .foregroundColor(graphite)
+            .multilineTextAlignment(.center)
+    }
+}
+
+private struct KCActiveServerMetric: View {
+    @ObservedObject private var store = ServerStore.shared
+    let graphite: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Server")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+            Text(store.activeServer.serverName.isEmpty ? "Default" : store.activeServer.serverName)
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .foregroundColor(graphite)
+                .lineLimit(1)
         }
     }
 }
