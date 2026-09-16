@@ -10,6 +10,16 @@ const tools = {
   text: ["текст", "пробел", "символ", "слова"]
 };
 
+byId("vpnConnect").addEventListener("click", () => {
+  byId("vpnNote").textContent = "Открываю K&C Smart VPN…";
+  window.location.href = "vkturnproxy://connect";
+  window.setTimeout(() => {
+    if (document.visibilityState === "visible") {
+      byId("vpnNote").textContent = "Не удалось открыть VPN. Проверьте, что K&C Smart VPN установлен на iPhone.";
+    }
+  }, 1400);
+});
+
 function openTool(id, message) {
   const node = byId(id);
   if (!node) return;
@@ -191,5 +201,9 @@ if ("serviceWorker" in navigator) window.addEventListener("load", () => navigato
 if (window.Telegram?.WebApp) {
   window.Telegram.WebApp.ready();
   window.Telegram.WebApp.expand();
-  document.documentElement.style.setProperty("--bg", window.Telegram.WebApp.themeParams.bg_color || "#050a12");
+  // K&C One intentionally keeps its own light appearance even when Telegram
+  // itself uses a dark theme. Importing Telegram's background here was what
+  // turned the otherwise white interface blue/black on the user's iPhone.
+  window.Telegram.WebApp.setHeaderColor?.("#f7f7f5");
+  window.Telegram.WebApp.setBackgroundColor?.("#f7f7f5");
 }

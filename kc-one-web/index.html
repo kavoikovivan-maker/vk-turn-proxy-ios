@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#07101f">
+  <meta name="theme-color" content="#f7f7f5">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="K&C One">
   <title>K&C One</title>
   <link rel="manifest" href="manifest.webmanifest">
@@ -18,6 +18,19 @@
       <div class="brand"><span>K&C</span><small>ONE</small></div>
       <div class="status" id="onlineStatus">Проверяю сеть…</div>
       <h1>Что нужно сделать?</h1>
+
+      <section class="vpn-card" aria-label="K&C Smart VPN">
+        <div class="vpn-copy">
+          <span class="vpn-mark" aria-hidden="true">K&amp;C</span>
+          <div><strong>Smart VPN</strong><small>Безопасное подключение</small></div>
+        </div>
+        <button class="vpn-power" id="vpnConnect" type="button">
+          <span class="power-symbol" aria-hidden="true"></span>
+          <span>Включить VPN</span>
+        </button>
+        <p id="vpnNote">Откроется установленный K&amp;C Smart VPN и начнёт подключение.</p>
+      </section>
+
       <form class="command" id="commandForm">
         <input id="commandInput" autocomplete="off" placeholder="Например: очистить динамик">
         <button aria-label="Выполнить">→</button>

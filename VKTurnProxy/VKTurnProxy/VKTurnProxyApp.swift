@@ -59,7 +59,20 @@ struct VKTurnProxyApp: App {
                 // scheme, so we're the sole handler. Any other scheme is ignored.
                 .onOpenURL { url in
                     let scheme = url.scheme?.lowercased()
-                    if scheme == "vkturnproxy" || scheme == "wdtt" || scheme == "freeturn" || scheme == "csqtt" {
+                    if scheme == "vkturnproxy", url.host?.lowercased() == "connect" {
+                        // K&C One's home-screen button opens this exact URL.
+                        // The web app cannot control an iOS VPN itself; once
+                        // iOS foregrounds the signed owner app, the native app
+                        // can start the already-configured tunnel normally.
+                        Task { @MainActor in
+                            let tunnel = TunnelManager.shared
+                            guard tunnel.status != .connected,
+                                  tunnel.status != .connecting,
+                                  !tunnel.preBootstrapInProgress else { return }
+                            let config = TunnelConfig.make(for: ServerStore.shared.activeServer)
+                            await tunnel.connect(config: config)
+                        }
+                    } else if scheme == "vkturnproxy" || scheme == "wdtt" || scheme == "freeturn" || scheme == "csqtt" {
                         ConnectionLinkInbox.shared.deliver(url)
                     }
                 }

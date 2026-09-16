@@ -1,4 +1,4 @@
-const CACHE = "kc-one-v1";
+const CACHE = "kc-one-v2-light-vpn";
 const ASSETS = ["./", "index.html", "styles.css", "app.js", "manifest.webmanifest", "icon.svg"];
 
 self.addEventListener("install", (event) => {
