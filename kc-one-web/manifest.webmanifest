@@ -1,0 +1,14 @@
+{
+  "name": "K&C One — умные инструменты",
+  "short_name": "K&C One",
+  "description": "Небольшие полезные инструменты и умный помощник K&C.",
+  "lang": "ru",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#050a12",
+  "theme_color": "#07101f",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
