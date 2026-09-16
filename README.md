@@ -1,5 +1,21 @@
 # VK TURN Proxy — iOS
 
+## K&C Smart VPN test branch
+
+The `kc-smart-vpn` branch is based on anton48 build 390 and keeps the original
+tunnel engine intact. It adds the K&C interface and two routing modes:
+
+- **Auto** — Smart Route watches confirmed tunnel statistics and, after three
+  consecutive failures, switches to the next fully configured server. A
+  60-second recovery cooldown prevents route flapping.
+- **Manual** — the user selects the server and its transport in Settings; Smart
+  Route does not switch it.
+
+VK remains the verified TURN transport. MAX can be represented by a separately
+configured server when a compatible endpoint is available. Yandex is not marked
+as working until a real transport has been verified. The pre-upgrade state is
+preserved in the `kc-smart-vpn-backup-build381` branch.
+
 Приложение для iOS, разработанное в исследовательских и образовательных целях, которое реализует туннель (VPN) между клиентским устройством и сервером. 
 
 Для построения туннеля могут быть использованы несколько разновидностей протоколов, общей частью которых является работа через [TURN relay](https://www.rfc-editor.org/info/rfc8656/). По умолчанию используются relay [ВКонтакте](https://vk.com) или можно задать другой TURN relay в настройках. Использование TURN relay как промежуточного звена позволяет приложению работать в том числе в условиях фильтрации трафика в корпоративной сети или у сотового провайдера.

@@ -1,0 +1,45 @@
+name: K&C iOS CI
+
+on:
+  push:
+    branches: [kc-smart-vpn]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Test and build app
+    runs-on: macos-15
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install xcodegen
+        run: brew install xcodegen
+
+      - name: Run test suites
+        run: ./tools/test.sh
+
+      - name: Build WireGuardBridge xcframework
+        run: make -C WireGuardBridge xcframework
+
+      - name: Build app without signing
+        run: ./scripts/ci/build_ios.sh
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kc-smart-vpn-build-logs
+          path: |
+            build/
+            WireGuardBridge/build/
+            /tmp/xcodebuild-*.log
+          if-no-files-found: ignore

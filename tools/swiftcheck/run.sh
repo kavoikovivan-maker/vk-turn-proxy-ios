@@ -35,6 +35,7 @@ require_tracked() {
 
 SOURCES=(
     tools/swiftcheck/main.swift
+    "$S/SmartRouteAgent.swift"
     # The extension's proxy-config redaction (Foundation only): the harness
     # RUNS it on real encodings — a text scan cannot see a regex stop at \".
     VKTurnProxy/PacketTunnel/ProxyConfigRedaction.swift

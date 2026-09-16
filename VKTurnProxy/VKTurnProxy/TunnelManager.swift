@@ -814,6 +814,7 @@ class TunnelManager: ObservableObject {
     enum ReconnectReason: String {
         case userPickedServer = "server picked on the Live Activity"
         case directRepair = "repairing an unconfirmed routing change"
+        case smartRoute = "Smart Route automatic recovery"
     }
 
     func switchAndReconnect(to serverId: UUID, because reason: ReconnectReason) async {

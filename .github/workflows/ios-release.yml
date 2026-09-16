@@ -1,0 +1,76 @@
+name: K&C iOS Release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  export-ipa:
+    name: Export signed K&C IPA
+    runs-on: macos-15
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install xcodegen
+        run: brew install xcodegen
+
+      - name: Build WireGuardBridge xcframework
+        run: make -C WireGuardBridge xcframework
+
+      - name: Generate Xcode project
+        run: xcodegen generate --spec VKTurnProxy/project.yml --project VKTurnProxy
+
+      - name: Validate unsigned build
+        run: ./scripts/ci/build_ios.sh
+
+      - name: Import signing certificate
+        env:
+          CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          echo "$CERTIFICATE_P12" | base64 --decode > certificate.p12
+          security import certificate.p12 -k build.keychain -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+
+      - name: Install provisioning profile
+        env:
+          PROFILE: ${{ secrets.PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo "$PROFILE" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision
+
+      - name: Archive app
+        run: |
+          xcodebuild \
+            -project VKTurnProxy/VKTurnProxy.xcodeproj \
+            -scheme VKTurnProxy \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath build/KCSmartVPN.xcarchive \
+            -allowProvisioningUpdates \
+            clean archive
+
+      - name: Export IPA
+        run: |
+          xcodebuild \
+            -exportArchive \
+            -archivePath build/KCSmartVPN.xcarchive \
+            -exportPath build/ipa \
+            -exportOptionsPlist VKTurnProxy/ExportOptions.plist
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: kc-smart-vpn-ipa
+          path: build/ipa/*.ipa

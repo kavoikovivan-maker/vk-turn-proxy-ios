@@ -65,6 +65,8 @@ struct ContentView: View {
                     Text(statusText)
                         .font(.headline)
 
+                    SmartRouteModePanel()
+
                     // Everything that depends on the ACTIVE SERVER — its name,
                     // the blocking-validation caption, the stats and the Connect
                     // button — is one child that observes `ServerStore`, so a
@@ -79,7 +81,7 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.top, 8)
             }
-            .navigationTitle("VK Turn Proxy")
+            .navigationTitle("K&C Smart VPN")
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $tunnel.captchaPending) {
                 if let urlStr = tunnel.captchaImageURL, let url = URL(string: urlStr) {

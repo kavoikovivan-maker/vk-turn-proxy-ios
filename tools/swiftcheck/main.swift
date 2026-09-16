@@ -3677,6 +3677,29 @@ do {
     }
 }
 
+print("Smart Route — deterministic health and failover policy")
+do {
+    let agent = SmartRouteAgent()
+    let now = Date()
+    let good = RouteTelemetry(routeID: "vk-primary", rttMs: 80, internetRttMs: 110,
+                              packetLoss: 0.01, consecutiveFailures: 0,
+                              isReachable: true, measuredAt: now)
+    let failed = RouteTelemetry(routeID: "vk-primary", rttMs: 0, internetRttMs: 0,
+                                packetLoss: 1, consecutiveFailures: 3,
+                                isReachable: false, measuredAt: now)
+    let backup = RouteTelemetry(routeID: "backup", rttMs: 160, internetRttMs: 190,
+                                packetLoss: 0.01, consecutiveFailures: 0,
+                                isReachable: true, measuredAt: now)
+    check(agent.health(of: good) == .excellent, "a low-loss route is excellent")
+    check(agent.decide(current: good, alternatives: [backup], secondsOnCurrent: 60).action == .keepCurrent,
+          "a healthy route is never switched unnecessarily")
+    let failover = agent.decide(current: failed, alternatives: [backup], secondsOnCurrent: 60)
+    check(failover.action == .switchRoute && failover.selectedRouteID == "backup",
+          "three failures select a viable configured backup")
+    check(agent.decide(current: failed, alternatives: [], secondsOnCurrent: 60).action == .fallBackToDirect,
+          "no viable backup produces an explicit fallback decision")
+}
+
 print("")
 if failures == 0 {
     print("swiftcheck: all checks passed")
