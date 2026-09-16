@@ -48,29 +48,17 @@ final class KCMaxTransportProbe: ObservableObject {
         let connection = NWConnection(host: "api.oneme.ru", port: 443, using: .tcp)
         activeConnection = connection
 
-        var finished = false
-        func finish(_ reachable: Bool) {
-            guard !finished else { return }
-            finished = true
-            let elapsed = Date().timeIntervalSince(startedAt) * 1_000
-            Task { @MainActor [weak self, weak connection] in
-                guard let self else { return }
-                if self.activeConnection === connection {
-                    self.isReachable = reachable
-                    self.latencyMs = reachable ? elapsed : nil
-                    self.lastChecked = Date()
-                    self.activeConnection = nil
-                }
-                connection?.cancel()
-            }
-        }
-
-        connection.stateUpdateHandler = { state in
+        connection.stateUpdateHandler = { [weak self, weak connection] state in
+            guard let connection else { return }
             switch state {
             case .ready:
-                finish(true)
+                Task { @MainActor in
+                    self?.finish(connection: connection, startedAt: startedAt, reachable: true)
+                }
             case .failed, .cancelled:
-                finish(false)
+                Task { @MainActor in
+                    self?.finish(connection: connection, startedAt: startedAt, reachable: false)
+                }
             default:
                 break
             }
@@ -78,8 +66,22 @@ final class KCMaxTransportProbe: ObservableObject {
 
         connection.start(queue: queue)
 
-        queue.asyncAfter(deadline: .now() + 5) {
-            finish(false)
+        queue.asyncAfter(deadline: .now() + 5) { [weak self, weak connection] in
+            guard let connection else { return }
+            Task { @MainActor in
+                self?.finish(connection: connection, startedAt: startedAt, reachable: false)
+            }
         }
+    }
+
+    private func finish(connection: NWConnection, startedAt: Date, reachable: Bool) {
+        guard activeConnection === connection else { return }
+
+        let elapsed = Date().timeIntervalSince(startedAt) * 1_000
+        isReachable = reachable
+        latencyMs = reachable ? elapsed : nil
+        lastChecked = Date()
+        activeConnection = nil
+        connection.cancel()
     }
 }
