@@ -52,6 +52,22 @@ struct KCSmartRouteView: View {
                     .foregroundColor(iceBlue)
             }
 
+            Divider().opacity(0.45)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Последнее решение")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Text(manager.lastSwitchReason)
+                    .font(.subheadline)
+                    .foregroundColor(graphite)
+                if let date = manager.lastSwitchAt {
+                    Text(date.formatted(date: .omitted, time: .standard))
+                        .font(.caption2.monospacedDigit())
+                        .foregroundColor(.secondary)
+                }
+            }
+
             if !manager.automaticSelectionEnabled {
                 Button("Вернуть автоматический выбор") {
                     manager.enableAutomaticSelection()
@@ -114,12 +130,15 @@ struct KCSmartRouteView: View {
             return "Доступен и участвует в выборе"
         }
         if item.isConfigured {
+            if item.consecutiveFailures > 0 {
+                return "Проверка стабильности · ошибок подряд: \(item.consecutiveFailures)"
+            }
             return item.lastUpdated == nil ? "Ожидает проверку" : "Сейчас недоступен"
         }
-        if item.probeReachable == true {
+        if item.kind == .max, item.probeReachable == true {
             return "Сеть MAX доступна · адаптер готовится"
         }
-        if item.probeReachable == false {
+        if item.kind == .max, item.probeReachable == false {
             return "Сеть MAX сейчас недоступна"
         }
         return "Адаптер ещё не подключён"
