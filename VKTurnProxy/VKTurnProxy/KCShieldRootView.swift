@@ -4,6 +4,7 @@ import NetworkExtension
 struct KCShieldRootView: View {
     @StateObject private var tunnel = TunnelManager.shared
     @ObservedObject private var store = ServerStore.shared
+    @StateObject private var transport = KCSmartTransportManager.shared
 
     private let canvas = Color(red: 0.945, green: 0.948, blue: 0.952)
     private let surface = Color.white.opacity(0.82)
@@ -173,15 +174,17 @@ struct KCShieldRootView: View {
                     .font(.headline)
                     .foregroundColor(graphite)
                 Spacer()
-                Text(healthLabel)
+                Text(transport.automaticSelectionEnabled ? "AUTO" : "MANUAL")
                     .font(.caption)
                     .fontWeight(.semibold)
-                    .foregroundColor(healthColor)
+                    .foregroundColor(iceBlue)
             }
 
             Divider().opacity(0.45)
 
             HStack {
+                metric(label: "Transport", value: transport.selectedDisplayName)
+                Spacer()
                 metric(label: "Tunnel", value: tunnel.status == .connected ? "Active" : "Standby")
                 Spacer()
                 metric(label: "Server", value: store.activeServer.serverName.isEmpty ? "Default" : store.activeServer.serverName)
@@ -231,7 +234,7 @@ struct KCShieldRootView: View {
 
     private var statusSubtitle: String {
         switch tunnel.status {
-        case .connected: return "Smart Proxy route is active"
+        case .connected: return "Smart Proxy via \(transport.selectedDisplayName)"
         case .connecting, .reasserting: return "Finding a stable route"
         case .disconnecting: return "Closing the tunnel safely"
         default: return "Tap K&C to start"
@@ -258,18 +261,6 @@ struct KCShieldRootView: View {
         tunnel.status == .connected ? 28 : 12
     }
 
-    private var healthLabel: String {
-        switch tunnel.status {
-        case .connected: return "Active"
-        case .connecting, .reasserting: return "Checking"
-        default: return "Ready"
-        }
-    }
-
-    private var healthColor: Color {
-        tunnel.status == .connected ? iceBlue : .secondary
-    }
-
     private func toggleTunnel() {
         if tunnel.status == .connected || tunnel.status == .connecting || tunnel.preBootstrapInProgress {
             SharedLogger.shared.log("[K&C UI] user requested disconnect")
@@ -277,8 +268,9 @@ struct KCShieldRootView: View {
             return
         }
 
+        transport.chooseBestAvailable()
         let active = store.activeServer
-        SharedLogger.shared.log("[K&C UI] user requested connect: \(active.serverName) [\(active.modeLabel)]")
+        SharedLogger.shared.log("[K&C UI] connect via \(transport.selectedDisplayName): \(active.serverName) [\(active.modeLabel)]")
         let config = TunnelConfig.make(for: active)
         Task {
             await tunnel.connect(config: config)
