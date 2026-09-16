@@ -1,0 +1,12 @@
+[submodule "research/upstream/ECC"]
+	path = research/upstream/ECC
+	url = https://github.com/affaan-m/ECC.git
+[submodule "research/upstream/agentshield"]
+	path = research/upstream/agentshield
+	url = https://github.com/affaan-m/agentshield.git
+[submodule "research/upstream/claude-swarm"]
+	path = research/upstream/claude-swarm
+	url = https://github.com/affaan-m/claude-swarm.git
+[submodule "research/upstream/JARVIS"]
+	path = research/upstream/JARVIS
+	url = https://github.com/affaan-m/JARVIS.git
