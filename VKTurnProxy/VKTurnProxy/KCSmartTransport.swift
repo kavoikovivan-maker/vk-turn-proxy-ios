@@ -32,6 +32,12 @@ struct KCTransportHealth: Identifiable, Equatable {
     var consecutiveFailures: Int
     var lastUpdated: Date?
 
+    /// Pre-flight reachability of a provider endpoint. This is deliberately
+    /// separate from `isReachable`: a provider can answer a TCP probe while its
+    /// actual tunnel adapter is still not configured or not healthy.
+    var probeReachable: Bool?
+    var probeLatencyMs: Double?
+
     var id: KCTransportKind { kind }
 
     var score: Double {
@@ -45,6 +51,11 @@ struct KCTransportHealth: Identifiable, Equatable {
         guard let latencyMs else { return "—" }
         return "\(Int(latencyMs.rounded())) ms"
     }
+
+    var probeLatencyLabel: String {
+        guard let probeLatencyMs else { return "—" }
+        return "\(Int(probeLatencyMs.rounded())) ms"
+    }
 }
 
 @MainActor
@@ -55,8 +66,9 @@ final class KCSmartTransportManager: ObservableObject {
     @Published private(set) var selected: KCTransportKind = .vk
     @Published var automaticSelectionEnabled = true
 
-    private var vkBindings = Set<AnyCancellable>()
+    private var bindings = Set<AnyCancellable>()
     private var vkTunnelBound = false
+    private var maxProbeBound = false
 
     private init() {
         transports = KCTransportKind.allCases.map { kind in
@@ -68,14 +80,17 @@ final class KCSmartTransportManager: ObservableObject {
                 isReachable: false,
                 latencyMs: nil,
                 consecutiveFailures: 0,
-                lastUpdated: nil
+                lastUpdated: nil,
+                probeReachable: nil,
+                probeLatencyMs: nil
             )
         }
 
-        // VK is the first concrete transport adapter. Binding here means every
-        // UI consumer sees the same live state without needing to remember an
-        // extra setup call.
+        // VK is the first concrete transport adapter. MAX currently has a
+        // pre-flight endpoint probe only; it remains ineligible for routing
+        // until its concrete tunnel adapter is connected.
         bindVK(to: TunnelManager.shared)
+        bindMAXProbe(to: KCMaxTransportProbe.shared)
     }
 
     var selectedDisplayName: String { selected.displayName }
@@ -128,7 +143,22 @@ final class KCSmartTransportManager: ObservableObject {
                 self.markIdle(kind: .vk, configured: true)
             }
         }
-        .store(in: &vkBindings)
+        .store(in: &bindings)
+    }
+
+    /// MAX pre-flight probe. This only tells us whether the signaling endpoint
+    /// can be reached from the current network. It never makes MAX selectable.
+    func bindMAXProbe(to probe: KCMaxTransportProbe) {
+        guard !maxProbeBound else { return }
+        maxProbeBound = true
+
+        Publishers.CombineLatest(probe.$isReachable, probe.$latencyMs)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] reachable, latency in
+                guard let self else { return }
+                self.reportProbe(kind: .max, reachable: reachable, latencyMs: latency)
+            }
+            .store(in: &bindings)
     }
 
     func report(
@@ -155,6 +185,15 @@ final class KCSmartTransportManager: ObservableObject {
         if automaticSelectionEnabled {
             chooseBestAvailable()
         }
+    }
+
+    func reportProbe(kind: KCTransportKind, reachable: Bool?, latencyMs: Double?) {
+        guard let index = transports.firstIndex(where: { $0.kind == kind }) else { return }
+        var item = transports[index]
+        item.probeReachable = reachable
+        item.probeLatencyMs = reachable == true ? latencyMs : nil
+        item.lastUpdated = Date()
+        transports[index] = item
     }
 
     func markIdle(kind: KCTransportKind, configured: Bool) {
