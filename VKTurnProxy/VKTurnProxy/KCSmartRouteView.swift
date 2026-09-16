@@ -95,9 +95,9 @@ struct KCSmartRouteView: View {
 
                         Spacer()
 
-                        Text(item.latencyLabel)
+                        Text(latencyText(item))
                             .font(.subheadline.monospacedDigit())
-                            .foregroundColor(item.isReachable ? graphite : .secondary)
+                            .foregroundColor((item.isReachable || item.probeReachable == true) ? graphite : .secondary)
                     }
                     .padding(16)
                     .background(Color.white.opacity(0.72))
@@ -110,14 +110,30 @@ struct KCSmartRouteView: View {
     }
 
     private func statusText(_ item: KCTransportHealth) -> String {
-        if !item.isConfigured { return "Адаптер ещё не подключён" }
-        if item.isReachable { return "Доступен и участвует в выборе" }
-        if item.lastUpdated == nil { return "Ожидает проверку" }
-        return "Сейчас недоступен"
+        if item.isConfigured && item.isReachable {
+            return "Доступен и участвует в выборе"
+        }
+        if item.isConfigured {
+            return item.lastUpdated == nil ? "Ожидает проверку" : "Сейчас недоступен"
+        }
+        if item.probeReachable == true {
+            return "Сеть MAX доступна · адаптер готовится"
+        }
+        if item.probeReachable == false {
+            return "Сеть MAX сейчас недоступна"
+        }
+        return "Адаптер ещё не подключён"
+    }
+
+    private func latencyText(_ item: KCTransportHealth) -> String {
+        if item.isConfigured { return item.latencyLabel }
+        if item.probeReachable == true { return item.probeLatencyLabel }
+        return "—"
     }
 
     private func statusColor(_ item: KCTransportHealth) -> Color {
         if item.isReachable { return iceBlue }
+        if item.probeReachable == true { return iceBlue.opacity(0.65) }
         if item.isConfigured { return .orange.opacity(0.75) }
         return .secondary.opacity(0.35)
     }
