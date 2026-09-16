@@ -1,13 +1,25 @@
 import SwiftUI
 import NetworkExtension
 import UIKit
+import UniformTypeIdentifiers
 
-private let kcInk = Color(white: 0.96)
+private var kcDarkTheme: Bool { UserDefaults.standard.object(forKey: "kcDarkTheme") as? Bool ?? true }
+private var kcPureBlack: Bool { UserDefaults.standard.bool(forKey: "kcPureBlack") }
+private var kcInk: Color { kcDarkTheme ? Color(white: 0.96) : Color(white: 0.08) }
 private let kcCopper = Color(red: 0.23, green: 0.80, blue: 0.45)
-private let kcBackground = Color(red: 0.055, green: 0.060, blue: 0.070)
-private let kcPanel = Color(red: 0.115, green: 0.120, blue: 0.135)
-private let kcRaised = Color(red: 0.17, green: 0.175, blue: 0.19)
-private let kcOutline = Color.white.opacity(0.075)
+private var kcBackground: Color {
+    kcDarkTheme ? (kcPureBlack ? .black : Color(red: 0.055, green: 0.060, blue: 0.070))
+                : Color(red: 0.955, green: 0.945, blue: 0.925)
+}
+private var kcPanel: Color {
+    kcDarkTheme ? (kcPureBlack ? Color(white: 0.075) : Color(red: 0.115, green: 0.120, blue: 0.135))
+                : Color.white.opacity(0.88)
+}
+private var kcRaised: Color {
+    kcDarkTheme ? (kcPureBlack ? Color(white: 0.13) : Color(red: 0.17, green: 0.175, blue: 0.19))
+                : Color(red: 0.89, green: 0.88, blue: 0.86)
+}
+private var kcOutline: Color { kcDarkTheme ? Color.white.opacity(0.075) : Color.black.opacity(0.08) }
 
 private enum KCHomeSheet: String, Identifiable {
     case route, assistant, tools, settings
@@ -29,6 +41,8 @@ struct KCHomeView: View {
     @ObservedObject private var store = ServerStore.shared
     @ObservedObject private var smartRoute = SmartRouteCoordinator.shared
     @State private var sheet: KCHomeSheet?
+    @AppStorage("kcDarkTheme") private var darkTheme = true
+    @AppStorage("kcPureBlack") private var pureBlack = false
 
     var body: some View {
         ZStack {
@@ -50,11 +64,12 @@ struct KCHomeView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) { bottomBar }
         .sheet(item: $sheet) { item in KCHomeBottomSheet(kind: item, tunnel: tunnel) }
         .onAppear { smartRoute.start() }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(darkTheme ? .dark : .light)
     }
 
     private var graphiteBackground: some View {
-        LinearGradient(colors: [Color(red: 0.10, green: 0.105, blue: 0.12), kcBackground],
+        LinearGradient(colors: [darkTheme ? (pureBlack ? .black : Color(red: 0.10, green: 0.105, blue: 0.12))
+                                           : Color(red: 0.99, green: 0.97, blue: 0.93), kcBackground],
                        startPoint: .topLeading, endPoint: .bottomTrailing)
             .overlay(alignment: .topLeading) {
                 Circle()
@@ -509,6 +524,7 @@ private struct KCHomeBottomSheet: View {
     let kind: KCHomeSheet
     @ObservedObject var tunnel: TunnelManager
     @Environment(\.dismiss) private var dismiss
+    @AppStorage("kcDarkTheme") private var darkTheme = true
 
     var body: some View {
         NavigationView {
@@ -517,7 +533,7 @@ private struct KCHomeBottomSheet: View {
                 case .route: KCRouteSheet(tunnel: tunnel)
                 case .assistant: KCAssistantSheet(tunnel: tunnel)
                 case .tools: KCToolsSheet(tunnel: tunnel)
-                case .settings: SettingsView()
+                case .settings: KCSettingsHub(tunnel: tunnel)
                 }
             }
             .navigationTitle(kind.title)
@@ -534,7 +550,7 @@ private struct KCHomeBottomSheet: View {
             }
         }
         .kcBottomSheetPresentation()
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(darkTheme ? .dark : .light)
     }
 }
 
@@ -616,7 +632,7 @@ private struct KCAssistantSheet: View {
 }
 
 private enum KCToolPanel {
-    case calculator
+    case calculator, speed, logs, settings
 }
 
 private struct KCToolsSheet: View {
@@ -624,44 +640,36 @@ private struct KCToolsSheet: View {
     @State private var panel: KCToolPanel?
     var body: some View {
         Group {
-            if panel == .calculator {
-                VStack(spacing: 10) {
-                    HStack {
-                        Text("Калькулятор")
-                            .font(.headline)
-                            .foregroundColor(kcInk)
-                        Spacer()
-                        Button { withAnimation(.easeInOut(duration: 0.22)) { panel = nil } } label: {
-                            Image(systemName: "chevron.down.circle.fill")
-                                .font(.system(size: 24))
-                                .foregroundColor(kcCopper)
-                        }
-                        .accessibilityLabel("Свернуть калькулятор")
+            if let panel {
+                KCSlidingPanel(title: toolTitle(panel), onBack: { show(nil) }) {
+                    switch panel {
+                    case .calculator: KCCalculatorView()
+                    case .speed: SpeedTestView(tunnel: tunnel)
+                    case .logs: LogsView(tunnel: tunnel)
+                    case .settings: KCSettingsHub(tunnel: tunnel)
                     }
-                    KCCalculatorView()
                 }
-                .padding(16)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             } else {
                 ScrollView {
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                        Button { withAnimation(.easeInOut(duration: 0.22)) { panel = .calculator } } label: {
+                        Button { show(.calculator) } label: {
                             KCCompactTool(icon: "plus.forwardslash.minus", title: "Калькулятор",
                                           subtitle: "Вычисления")
                         }
                         .buttonStyle(.plain)
-                        NavigationLink(destination: SpeedTestView(tunnel: tunnel)) {
+                        Button { show(.speed) } label: {
                             KCCompactTool(icon: "speedometer", title: "Скорость",
                                           subtitle: "Тест сети")
-                        }
-                        NavigationLink(destination: LogsView(tunnel: tunnel)) {
+                        }.buttonStyle(.plain)
+                        Button { show(.logs) } label: {
                             KCCompactTool(icon: "waveform.path.ecg", title: "Диагностика",
                                           subtitle: "Состояние VPN")
-                        }
-                        NavigationLink(destination: SettingsView()) {
+                        }.buttonStyle(.plain)
+                        Button { show(.settings) } label: {
                             KCCompactTool(icon: "gearshape", title: "Настройки",
                                           subtitle: "Все параметры")
-                        }
+                        }.buttonStyle(.plain)
                     }
                     .padding(16)
                 }
@@ -670,6 +678,362 @@ private struct KCToolsSheet: View {
         }
         .background(kcBackground)
     }
+
+    private func show(_ next: KCToolPanel?) {
+        withAnimation(.easeInOut(duration: 0.22)) { panel = next }
+    }
+
+    private func toolTitle(_ panel: KCToolPanel) -> String {
+        switch panel {
+        case .calculator: return "Калькулятор"
+        case .speed: return "Тест скорости"
+        case .logs: return "Диагностика"
+        case .settings: return "Настройки"
+        }
+    }
+}
+
+private struct KCSlidingPanel<Content: View>: View {
+    let title: String
+    let onBack: () -> Void
+    let content: Content
+
+    init(title: String, onBack: @escaping () -> Void, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.onBack = onBack
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(spacing: 8) {
+            HStack {
+                Button(action: onBack) {
+                    Image(systemName: "chevron.left.circle.fill")
+                        .font(.system(size: 24)).foregroundColor(kcCopper)
+                }
+                Text(title).font(.headline).foregroundColor(kcInk)
+                Spacer()
+            }
+            .padding(.horizontal, 16).padding(.top, 8)
+            content.frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .background(kcBackground)
+    }
+}
+
+private enum KCSettingsPanel: Hashable {
+    case appearance, connection, vk, servers, server(UUID), advanced, backup
+}
+
+private struct KCSettingsHub: View {
+    @ObservedObject var tunnel: TunnelManager
+    @State private var panel: KCSettingsPanel?
+
+    var body: some View {
+        Group {
+            if let panel {
+                KCSlidingPanel(title: title(panel), onBack: { show(nil) }) {
+                    panelContent(panel)
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else {
+                ScrollView {
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                        settingButton(.appearance, "circle.lefthalf.filled", "Оформление", "Светлая · графит · чёрная")
+                        settingButton(.connection, "point.3.connected.trianglepath.dotted", "Подключение", "Smart Route и DIRECT")
+                        settingButton(.vk, "person.crop.circle.badge.checkmark", "VK и вход", "Ссылки и сессия")
+                        settingButton(.servers, "server.rack", "Серверы", "Протоколы и ключи")
+                        settingButton(.advanced, "slider.horizontal.3", "Расширенные", "MTU, Island, журнал")
+                        settingButton(.backup, "externaldrive", "Резерв и импорт", "Копия, ссылка, сброс")
+                    }
+                    .padding(16)
+                }
+                .transition(.opacity)
+            }
+        }
+        .background(kcBackground)
+    }
+
+    @ViewBuilder private func panelContent(_ panel: KCSettingsPanel) -> some View {
+        switch panel {
+        case .appearance: KCAppearancePanel()
+        case .connection: KCRouteSheet(tunnel: tunnel)
+        case .vk: KCVKSettingsPanel()
+        case .servers: KCServerListPanel { show(.server($0)) }
+        case let .server(id): ServerEditView(serverId: id)
+        case .advanced: AdvancedView()
+        case .backup: KCBackupPanel()
+        }
+    }
+
+    private func settingButton(_ target: KCSettingsPanel, _ icon: String, _ title: String, _ subtitle: String) -> some View {
+        Button { show(target) } label: {
+            KCCompactTool(icon: icon, title: title, subtitle: subtitle)
+        }.buttonStyle(.plain)
+    }
+
+    private func show(_ next: KCSettingsPanel?) {
+        withAnimation(.easeInOut(duration: 0.22)) { panel = next }
+    }
+
+    private func title(_ panel: KCSettingsPanel) -> String {
+        switch panel {
+        case .appearance: return "Оформление"
+        case .connection: return "Подключение"
+        case .vk: return "VK и вход"
+        case .servers: return "Серверы"
+        case .server: return "Настройка сервера"
+        case .advanced: return "Расширенные"
+        case .backup: return "Резерв и импорт"
+        }
+    }
+}
+
+private struct KCAppearancePanel: View {
+    @AppStorage("kcDarkTheme") private var darkTheme = true
+    @AppStorage("kcPureBlack") private var pureBlack = false
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                VStack(spacing: 0) {
+                    Toggle("Тёмная тема", isOn: $darkTheme)
+                        .padding(14)
+                    Divider().padding(.leading, 14)
+                    Toggle("Настоящий чёрный", isOn: $pureBlack)
+                        .padding(14).disabled(!darkTheme)
+                }
+                .background(kcPanel)
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+
+                HStack(spacing: 10) {
+                    themePreview("Светлая", dark: false, black: false)
+                    themePreview("Графит", dark: true, black: false)
+                    themePreview("Чёрная", dark: true, black: true)
+                }
+                Text("Оформление меняется сразу во всём интерфейсе K&C. Настройки VPN и соединение при этом не затрагиваются.")
+                    .font(.caption).foregroundColor(.secondary)
+            }.padding(16)
+        }.background(kcBackground)
+    }
+
+    private func themePreview(_ title: String, dark: Bool, black: Bool) -> some View {
+        let selected = darkTheme == dark && (!dark || pureBlack == black)
+        return Button {
+            withAnimation(.easeInOut(duration: 0.2)) { darkTheme = dark; pureBlack = black }
+        } label: {
+            VStack(spacing: 7) {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(dark ? (black ? Color.black : Color(red: 0.09, green: 0.095, blue: 0.11)) : Color(red: 0.97, green: 0.95, blue: 0.91))
+                    .frame(height: 58)
+                    .overlay(alignment: .bottom) {
+                        HStack(spacing: 3) { ForEach(0..<3) { _ in Capsule().fill(kcCopper).frame(height: 5) } }
+                            .padding(8)
+                    }
+                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(selected ? kcCopper : kcOutline, lineWidth: selected ? 2 : 1))
+                Text(title).font(.caption2.weight(selected ? .semibold : .regular)).foregroundColor(kcInk)
+            }
+        }.buttonStyle(.plain)
+    }
+}
+
+private struct KCServerListPanel: View {
+    @ObservedObject private var store = ServerStore.shared
+    let onEdit: (UUID) -> Void
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 10) {
+                ForEach(store.servers) { server in
+                    HStack(spacing: 12) {
+                        Button { store.activate(server.id) } label: {
+                            Image(systemName: server.id == store.activeServerId ? "checkmark.circle.fill" : "circle")
+                                .font(.title3).foregroundColor(server.id == store.activeServerId ? kcCopper : .secondary)
+                        }.buttonStyle(.plain)
+                        Button { onEdit(server.id) } label: {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(server.serverName).font(.subheadline.weight(.semibold)).foregroundColor(kcInk)
+                                Text(server.modeLabel).font(.caption).foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right").foregroundColor(.secondary)
+                        }.buttonStyle(.plain)
+                    }
+                    .padding(14).background(kcPanel)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                Text("Кружок выбирает активный сервер. Нажатие на карточку открывает его параметры в этой же нижней панели.")
+                    .font(.caption).foregroundColor(.secondary).frame(maxWidth: .infinity, alignment: .leading)
+            }.padding(16)
+        }.background(kcBackground)
+    }
+}
+
+private struct KCVKSettingsPanel: View {
+    @AppStorage("vkLink") private var vkLink = ""
+    @AppStorage("VKAuth") private var vkAuth = false
+    @State private var cookie: VKCookieStore.Stored?
+    @State private var showLogin = false
+    @State private var showDelete = false
+
+    private var links: [String] {
+        vkLink.split(whereSeparator: { $0.isNewline }).map(String.init).filter { !$0.isEmpty }
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("VK Call Link\(vkAuth ? "s" : "")").font(.caption).foregroundColor(.secondary)
+                    TextEditor(text: $vkLink).frame(minHeight: vkAuth ? 115 : 76)
+                        .autocapitalization(.none).disableAutocorrection(true)
+                        .padding(8).background(kcRaised)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    Text(vkAuth ? "\(links.count) ссылок · до \(links.count * 2) TURN-реле" : "Основная ссылка для подключения")
+                        .font(.caption2).foregroundColor(.secondary)
+                }.padding(14).background(kcPanel).clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+
+                VStack(spacing: 0) {
+                    Toggle("Использовать аккаунт VK", isOn: $vkAuth).padding(14)
+                    Divider().padding(.leading, 14)
+                    HStack { Text("Сессия"); Spacer(); Text(cookieStatus).foregroundColor(cookieIsValid ? kcCopper : .orange) }
+                        .font(.subheadline).padding(14)
+                    Button { showLogin = true } label: {
+                        Label(cookie == nil ? "Войти во VK" : "Войти повторно", systemImage: "person.crop.circle.badge.checkmark")
+                            .frame(maxWidth: .infinity, alignment: .leading).padding(14)
+                    }.buttonStyle(.plain).foregroundColor(kcCopper)
+                    if cookie != nil {
+                        Divider().padding(.leading, 14)
+                        Button(role: .destructive) { showDelete = true } label: {
+                            Label("Удалить сохранённую сессию", systemImage: "trash")
+                                .frame(maxWidth: .infinity, alignment: .leading).padding(14)
+                        }
+                    }
+                }.background(kcPanel).clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            }.padding(16)
+        }
+        .background(kcBackground)
+        .onAppear { cookie = VKCookieStore.load() }
+        .onChange(of: vkAuth) { enabled in if enabled && !VKCookieStore.isValid() { showLogin = true } }
+        .sheet(isPresented: $showLogin) {
+            VKAuthWebView { result in
+                showLogin = false
+                if case let .harvested(header, expiry) = result {
+                    VKCookieStore.save(cookieHeader: header, expiry: expiry)
+                    cookie = VKCookieStore.load()
+                }
+            }
+        }
+        .alert("Удалить сохранённую сессию?", isPresented: $showDelete) {
+            Button("Удалить", role: .destructive) { VKCookieStore.delete(); cookie = nil }
+            Button("Отмена", role: .cancel) {}
+        }
+    }
+
+    private var cookieIsValid: Bool { (cookie?.expiry ?? .distantPast) > Date() }
+    private var cookieStatus: String {
+        guard let cookie else { return "Нет входа" }
+        if !cookieIsValid { return "Истекла" }
+        return "Активна до " + cookie.expiry.formatted(date: .numeric, time: .omitted)
+    }
+}
+
+private struct KCBackupPanel: View {
+    @State private var exportURL: IdentifiableURL?
+    @State private var showPicker = false
+    @State private var pendingConfig: AppConfig?
+    @State private var pendingLink: ConnectionLink?
+    @State private var showImportConfirm = false
+    @State private var showLinkConfirm = false
+    @State private var showResetCache = false
+    @State private var showResetProfile = false
+    @State private var alertTitle = ""
+    @State private var alertMessage: String?
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 10) {
+                action("Экспорт полной копии", "square.and.arrow.up", handleExport)
+                action("Импорт полной копии", "square.and.arrow.down") { showPicker = true }
+                action("Импорт ссылки из буфера", "link.badge.plus", handleLinkPaste)
+                action("Сбросить кэш TURN", "trash", destructive: true) { showResetCache = true }
+                action("Сбросить профиль браузера", "trash", destructive: true) { showResetProfile = true }
+                Text("Резервная копия содержит настройки, ключи WireGuard, данные TURN и профиль браузера. Храните файл как секрет.")
+                    .font(.caption).foregroundColor(.secondary).frame(maxWidth: .infinity, alignment: .leading).padding(.top, 4)
+            }.padding(16)
+        }
+        .background(kcBackground)
+        .sheet(item: $exportURL) { ShareSheet(activityItems: [$0.url]) }
+        .sheet(isPresented: $showPicker) {
+            DocumentPicker(contentTypes: [.json, .text, .data, .item]) { importFile($0) }
+        }
+        .alert("Импортировать резервную копию?", isPresented: $showImportConfirm, presenting: pendingConfig) { config in
+            Button("Импортировать", role: .destructive) { apply(config) }
+            Button("Отмена", role: .cancel) { pendingConfig = nil }
+        } message: { _ in Text("Текущие настройки будут заменены данными из выбранного файла.") }
+        .alert("Импортировать ссылку подключения?", isPresented: $showLinkConfirm, presenting: pendingLink) { link in
+            Button("Импортировать", role: .destructive) {
+                alertTitle = ConnectionLinkPrompt.importedTitle
+                alertMessage = ConnectionLinkPrompt.apply(link)
+                pendingLink = nil
+            }
+            Button("Отмена", role: .cancel) { pendingLink = nil }
+        } message: { Text(ConnectionLinkPrompt.message(for: $0)) }
+        .alert("Сбросить кэш TURN?", isPresented: $showResetCache) {
+            Button("Сбросить", role: .destructive) { resetCache() }
+            Button("Отмена", role: .cancel) {}
+        } message: { Text("Кэш будет создан заново при следующем подключении.") }
+        .alert("Сбросить профиль браузера?", isPresented: $showResetProfile) {
+            Button("Сбросить", role: .destructive) { resetProfile() }
+            Button("Отмена", role: .cancel) {}
+        } message: { Text("Автоматический решатель временно будет использовать новый профиль.") }
+        .alert(alertTitle, isPresented: Binding(get: { alertMessage != nil }, set: { if !$0 { alertMessage = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: { Text(alertMessage ?? "") }
+    }
+
+    private func action(_ title: String, _ icon: String, destructive: Bool = false, _ work: @escaping () -> Void) -> some View {
+        Button(action: work) {
+            HStack(spacing: 12) {
+                Image(systemName: icon).font(.title3).frame(width: 28)
+                Text(title).font(.subheadline.weight(.medium))
+                Spacer()
+                Image(systemName: "chevron.right").font(.caption).foregroundColor(.secondary)
+            }
+            .foregroundColor(destructive ? .red : kcInk).padding(14).background(kcPanel)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }.buttonStyle(.plain)
+    }
+
+    private func handleExport() {
+        do { exportURL = IdentifiableURL(url: try BackupManager.exportToTempFile()) }
+        catch { fail("Экспорт не выполнен", error) }
+    }
+    private func importFile(_ url: URL) {
+        do { pendingConfig = try BackupManager.importFromFileURL(url); showImportConfirm = true }
+        catch { fail("Импорт не выполнен", error) }
+    }
+    private func apply(_ config: AppConfig) {
+        do {
+            try BackupManager.applyConfig(config); pendingConfig = nil
+            alertTitle = "Импорт завершён"; alertMessage = "Настройки и кэш TURN восстановлены."
+        } catch { fail("Импорт не выполнен", error) }
+    }
+    private func handleLinkPaste() {
+        let raw = UIPasteboard.general.string ?? ""
+        guard !raw.isEmpty else { alertTitle = "Буфер пуст"; alertMessage = "Сначала скопируйте ссылку подключения."; return }
+        do { pendingLink = try BackupManager.parseConnectionLinkString(raw); showLinkConfirm = true }
+        catch { fail(ConnectionLinkPrompt.invalidTitle, error) }
+    }
+    private func resetCache() {
+        do { try BackupManager.resetTurnCache(); alertTitle = "Кэш очищен"; alertMessage = "Кэш TURN будет создан при следующем подключении." }
+        catch { fail("Сброс не выполнен", error) }
+    }
+    private func resetProfile() {
+        do { try BackupManager.resetCapturedProfile(); alertTitle = "Профиль очищен"; alertMessage = "Профиль браузера будет создан заново." }
+        catch { fail("Сброс не выполнен", error) }
+    }
+    private func fail(_ title: String, _ error: Error) { alertTitle = title; alertMessage = error.localizedDescription }
 }
 
 private struct KCCompactTool: View {
