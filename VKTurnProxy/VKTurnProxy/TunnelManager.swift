@@ -1232,6 +1232,7 @@ class TunnelManager: ObservableObject {
     /// riskier one: it runs while the app is in the background, on borrowed
     /// time inside perform().
     enum DirectChangeSource: String {
+        case mainScreen = "the main-screen route picker"
         case advancedSwitch = "the Advanced switch"
         case liveActivity = "the Live Activity"
         case shortcut = "Shortcuts"
