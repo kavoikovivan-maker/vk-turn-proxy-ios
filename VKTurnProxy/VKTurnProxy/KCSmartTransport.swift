@@ -64,7 +64,15 @@ final class KCSmartTransportManager: ObservableObject {
 
     @Published private(set) var transports: [KCTransportHealth]
     @Published private(set) var selected: KCTransportKind = .vk
+    @Published private(set) var lastSwitchReason = "Начальный маршрут"
+    @Published private(set) var lastSwitchAt: Date?
     @Published var automaticSelectionEnabled = true
+
+    /// Stability controls for future multi-provider failover.
+    /// A single bad sample must not make Smart Route flap between transports.
+    private let failureThreshold = 2
+    private let minimumDwellTime: TimeInterval = 20
+    private let scoreImprovementRequired: Double = 120
 
     private var bindings = Set<AnyCancellable>()
     private var vkTunnelBound = false
@@ -75,8 +83,6 @@ final class KCSmartTransportManager: ObservableObject {
             KCTransportHealth(
                 kind: kind,
                 isConfigured: kind == .vk,
-                // Reachability now comes from real tunnel telemetry rather than
-                // a hard-coded optimistic state.
                 isReachable: false,
                 latencyMs: nil,
                 consecutiveFailures: 0,
@@ -105,13 +111,11 @@ final class KCSmartTransportManager: ObservableObject {
 
     var bestAvailable: KCTransportKind? {
         transports
-            .filter { $0.score != -.infinity }
+            .filter { $0.isConfigured && $0.isReachable }
             .max(by: { $0.score < $1.score })?
             .kind
     }
 
-    /// Feed the already-working VK/TURN tunnel into Smart Route using real
-    /// runtime telemetry. TURN RTT is measured by the tunnel engine itself.
     func bindVK(to tunnel: TunnelManager) {
         guard !vkTunnelBound else { return }
         vkTunnelBound = true
@@ -183,7 +187,7 @@ final class KCSmartTransportManager: ObservableObject {
         transports[index] = item
 
         if automaticSelectionEnabled {
-            chooseBestAvailable()
+            chooseBestAvailable(reason: reachable ? "Лучшее качество маршрута" : "Потеря качества текущего транспорта")
         }
     }
 
@@ -216,19 +220,48 @@ final class KCSmartTransportManager: ObservableObject {
         transports[index] = item
     }
 
-    func chooseBestAvailable() {
-        guard automaticSelectionEnabled, let bestAvailable else { return }
-        selected = bestAvailable
+    func chooseBestAvailable(reason: String = "Автоматический выбор") {
+        guard automaticSelectionEnabled, let best = bestAvailable else { return }
+        guard best != selected else { return }
+
+        let now = Date()
+        let current = selectedHealth
+        let candidate = transports.first(where: { $0.kind == best })
+
+        // If the current route is still healthy, avoid cosmetic switches for
+        // small RTT changes. The candidate must be materially better and the
+        // current transport must have stayed selected for a minimum interval.
+        if let current, current.isReachable {
+            if let lastSwitchAt, now.timeIntervalSince(lastSwitchAt) < minimumDwellTime {
+                return
+            }
+            guard let candidate, candidate.score >= current.score + scoreImprovementRequired else {
+                return
+            }
+        } else if let current, current.consecutiveFailures < failureThreshold {
+            // One failed health sample can be transient. Keep the current
+            // selection until failure is confirmed by a second sample.
+            return
+        }
+
+        selected = best
+        lastSwitchAt = now
+        lastSwitchReason = reason
+        SharedLogger.shared.log("[Smart Route] switched to \(best.displayName): \(reason)")
     }
 
     func selectManually(_ kind: KCTransportKind) {
         guard let item = transports.first(where: { $0.kind == kind }), item.isConfigured else { return }
         automaticSelectionEnabled = false
         selected = kind
+        lastSwitchAt = Date()
+        lastSwitchReason = "Выбрано вручную"
+        SharedLogger.shared.log("[Smart Route] manual selection: \(kind.displayName)")
     }
 
     func enableAutomaticSelection() {
         automaticSelectionEnabled = true
-        chooseBestAvailable()
+        lastSwitchReason = "Автоматический режим включён"
+        chooseBestAvailable(reason: "Автоматический режим включён")
     }
 }
