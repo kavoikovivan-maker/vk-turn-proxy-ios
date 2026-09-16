@@ -22,14 +22,13 @@ private var kcRaised: Color {
 private var kcOutline: Color { kcDarkTheme ? Color.white.opacity(0.075) : Color.black.opacity(0.08) }
 
 private enum KCHomeSheet: String, Identifiable {
-    case route, assistant, tools, settings
+    case route, assistant, tools
     var id: String { rawValue }
     var title: String {
         switch self {
         case .route: return "Smart Route"
         case .assistant: return "Помощник"
         case .tools: return "Инструменты"
-        case .settings: return "Настройки"
         }
     }
 }
@@ -41,27 +40,38 @@ struct KCHomeView: View {
     @ObservedObject private var store = ServerStore.shared
     @ObservedObject private var smartRoute = SmartRouteCoordinator.shared
     @State private var sheet: KCHomeSheet?
+    @State private var showingSettings = false
     @AppStorage("kcDarkTheme") private var darkTheme = true
     @AppStorage("kcPureBlack") private var pureBlack = false
 
     var body: some View {
-        ZStack {
-            graphiteBackground.ignoresSafeArea()
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 10) {
-                    header
-                    KCPowerControl(tunnel: tunnel, server: store.activeServer)
-                    routeCard
-                    KCNetworkDashboard(live: tunnel.live, connected: tunnel.status == .connected)
-                    configuredRoutes
-                    activityCard
+        Group {
+            if showingSettings {
+                KCFullSettingsPage(tunnel: tunnel) {
+                    withAnimation(.easeInOut(duration: 0.24)) { showingSettings = false }
                 }
-                .padding(.horizontal, 14)
-                .padding(.top, 6)
-                .padding(.bottom, 86)
+                .transition(.move(edge: .trailing).combined(with: .opacity))
+            } else {
+                ZStack {
+                    graphiteBackground.ignoresSafeArea()
+                    ScrollView(showsIndicators: false) {
+                        VStack(spacing: 10) {
+                            header
+                            KCPowerControl(tunnel: tunnel, server: store.activeServer)
+                            routeCard
+                            KCNetworkDashboard(live: tunnel.live, connected: tunnel.status == .connected)
+                            configuredRoutes
+                            activityCard
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.top, 6)
+                        .padding(.bottom, 86)
+                    }
+                }
+                .safeAreaInset(edge: .bottom, spacing: 0) { bottomBar }
+                .transition(.move(edge: .leading).combined(with: .opacity))
             }
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) { bottomBar }
         .sheet(item: $sheet) { item in KCHomeBottomSheet(kind: item, tunnel: tunnel) }
         .onAppear { smartRoute.start() }
         .preferredColorScheme(darkTheme ? .dark : .light)
@@ -87,7 +97,7 @@ struct KCHomeView: View {
 
     private var header: some View {
         HStack(alignment: .top) {
-            headerButton("gearshape") { sheet = .settings }
+            headerButton("gearshape") { withAnimation(.easeInOut(duration: 0.24)) { showingSettings = true } }
             Spacer()
             VStack(spacing: 0) {
                 Text("K&C")
@@ -171,7 +181,7 @@ struct KCHomeView: View {
                     .buttonStyle(.plain)
                 }
                 ForEach(0..<max(0, 3 - store.servers.count), id: \.self) { _ in
-                    Button { sheet = .settings } label: {
+                    Button { withAnimation(.easeInOut(duration: 0.24)) { showingSettings = true } } label: {
                         VStack(spacing: 6) {
                             Image(systemName: "plus")
                                 .frame(width: 34, height: 34)
@@ -212,6 +222,10 @@ struct KCHomeView: View {
             KCBottomButton(title: "Маршрут", icon: "point.topleft.down.curvedto.point.bottomright.up", selected: sheet == .route) { sheet = .route }
             KCBottomButton(title: "Помощник", icon: "face.smiling", selected: sheet == .assistant) { sheet = .assistant }
             KCBottomButton(title: "Инструменты", icon: "shippingbox", selected: sheet == .tools) { sheet = .tools }
+            KCBottomButton(title: "Settings", icon: "gearshape.fill", selected: false) {
+                sheet = nil
+                withAnimation(.easeInOut(duration: 0.24)) { showingSettings = true }
+            }
         }
         .padding(.top, 8).padding(.horizontal, 8)
         .background(.ultraThinMaterial)
@@ -533,7 +547,6 @@ private struct KCHomeBottomSheet: View {
                 case .route: KCRouteSheet(tunnel: tunnel)
                 case .assistant: KCAssistantSheet(tunnel: tunnel)
                 case .tools: KCToolsSheet(tunnel: tunnel)
-                case .settings: KCSettingsHub(tunnel: tunnel)
                 }
             }
             .navigationTitle(kind.title)
@@ -632,7 +645,7 @@ private struct KCAssistantSheet: View {
 }
 
 private enum KCToolPanel {
-    case calculator, speed, logs, settings
+    case calculator, speed, logs
 }
 
 private struct KCToolsSheet: View {
@@ -646,7 +659,6 @@ private struct KCToolsSheet: View {
                     case .calculator: KCCalculatorView()
                     case .speed: SpeedTestView(tunnel: tunnel)
                     case .logs: LogsView(tunnel: tunnel)
-                    case .settings: KCSettingsHub(tunnel: tunnel)
                     }
                 }
                 .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -666,10 +678,6 @@ private struct KCToolsSheet: View {
                             KCCompactTool(icon: "waveform.path.ecg", title: "Диагностика",
                                           subtitle: "Состояние VPN")
                         }.buttonStyle(.plain)
-                        Button { show(.settings) } label: {
-                            KCCompactTool(icon: "gearshape", title: "Настройки",
-                                          subtitle: "Все параметры")
-                        }.buttonStyle(.plain)
                     }
                     .padding(16)
                 }
@@ -688,7 +696,6 @@ private struct KCToolsSheet: View {
         case .calculator: return "Калькулятор"
         case .speed: return "Тест скорости"
         case .logs: return "Диагностика"
-        case .settings: return "Настройки"
         }
     }
 }
@@ -725,6 +732,30 @@ private enum KCSettingsPanel: Hashable {
     case appearance, connection, vk, servers, server(UUID), advanced, backup
 }
 
+private struct KCFullSettingsPage: View {
+    @ObservedObject var tunnel: TunnelManager
+    let onClose: () -> Void
+    @AppStorage("kcDarkTheme") private var darkTheme = true
+
+    var body: some View {
+        NavigationView {
+            KCSettingsHub(tunnel: tunnel)
+                .navigationTitle("Settings")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button(action: onClose) {
+                            Label("Назад", systemImage: "chevron.left")
+                                .foregroundColor(kcCopper)
+                        }
+                    }
+                }
+        }
+        .background(kcBackground.ignoresSafeArea())
+        .preferredColorScheme(darkTheme ? .dark : .light)
+    }
+}
+
 private struct KCSettingsHub: View {
     @ObservedObject var tunnel: TunnelManager
     @State private var panel: KCSettingsPanel?
@@ -738,13 +769,16 @@ private struct KCSettingsHub: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             } else {
                 ScrollView {
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                        settingButton(.appearance, "circle.lefthalf.filled", "Оформление", "Светлая · графит · чёрная")
-                        settingButton(.connection, "point.3.connected.trianglepath.dotted", "Подключение", "Smart Route и DIRECT")
-                        settingButton(.vk, "person.crop.circle.badge.checkmark", "VK и вход", "Ссылки и сессия")
-                        settingButton(.servers, "server.rack", "Серверы", "Протоколы и ключи")
-                        settingButton(.advanced, "slider.horizontal.3", "Расширенные", "MTU, Island, журнал")
-                        settingButton(.backup, "externaldrive", "Резерв и импорт", "Копия, ссылка, сброс")
+                    VStack(spacing: 12) {
+                        KCSettingsVKStatusCard { show(.vk) }
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                            settingButton(.appearance, "circle.lefthalf.filled", "Оформление", "Светлая · графит · чёрная")
+                            settingButton(.connection, "point.3.connected.trianglepath.dotted", "Подключение", "Smart Route и DIRECT")
+                            settingButton(.vk, "person.crop.circle.badge.checkmark", "VK и вход", "Ссылки и сессия")
+                            settingButton(.servers, "server.rack", "Серверы", "Протоколы и ключи")
+                            settingButton(.advanced, "slider.horizontal.3", "Расширенные", "MTU, Island, журнал")
+                            settingButton(.backup, "externaldrive", "Резерв и импорт", "Копия, ссылка, сброс")
+                        }
                     }
                     .padding(16)
                 }
@@ -786,6 +820,44 @@ private struct KCSettingsHub: View {
         case .advanced: return "Расширенные"
         case .backup: return "Резерв и импорт"
         }
+    }
+}
+
+private struct KCSettingsVKStatusCard: View {
+    @AppStorage("vkLink") private var vkLink = ""
+    @AppStorage("VKAuth") private var vkAuth = false
+    let action: () -> Void
+
+    private var linkCount: Int {
+        vkLink.split(whereSeparator: { $0.isNewline }).filter { !$0.isEmpty }.count
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 13) {
+                Text("VK")
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundColor(.white).frame(width: 46, height: 46)
+                    .background(Color(red: 0.10, green: 0.48, blue: 0.94))
+                    .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Канал VK").font(.subheadline.weight(.semibold)).foregroundColor(kcInk)
+                    Text(linkCount == 0 ? "Call‑ссылка не добавлена" : "\(linkCount) call‑ссылок · \(vkAuth ? "аккаунт VK" : "анонимный режим")")
+                        .font(.caption).foregroundColor(.secondary).lineLimit(1)
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 5) {
+                    HStack(spacing: 5) {
+                        Circle().fill(VKCookieStore.isValid() ? kcCopper : (linkCount > 0 ? Color.orange : Color.gray)).frame(width: 7, height: 7)
+                        Text(VKCookieStore.isValid() ? "Сессия" : (linkCount > 0 ? "Готов" : "Настроить"))
+                    }.font(.caption2).foregroundColor(.secondary)
+                    Image(systemName: "chevron.right").font(.caption).foregroundColor(.secondary)
+                }
+            }
+            .padding(14).background(kcPanel)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(kcOutline, lineWidth: 1))
+        }.buttonStyle(.plain)
     }
 }
 
