@@ -202,3 +202,89 @@ struct SmartRouteModePanel: View {
         .onChange(of: modeRaw) { _ in coordinator.modeChanged() }
     }
 }
+
+
+private enum KCTrafficPath: String, CaseIterable, Identifiable {
+    case vpn
+    case direct
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .vpn: return "Через VPN"
+        case .direct: return "Напрямую"
+        }
+    }
+}
+
+/// Home-screen control for the existing, device-tested DIRECT routing mode.
+/// It is deliberately a view over TunnelManager's confirmed state rather than
+/// another persisted preference: the saved VPN profile and the extension are
+/// the only sources of truth about which route is actually applied.
+struct TrafficRouteModePanel: View {
+    @ObservedObject var tunnel: TunnelManager
+
+    private var selection: Binding<KCTrafficPath> {
+        Binding(
+            get: { tunnel.directMode ? .direct : .vpn },
+            set: { path in
+                let wantsDirect = path == .direct
+                guard wantsDirect != tunnel.directMode else { return }
+                Task {
+                    await tunnel.setDirectMode(wantsDirect, from: .mainScreen)
+                }
+            }
+        )
+    }
+
+    var body: some View {
+        VStack(spacing: 10) {
+            HStack {
+                Label("Интернет", systemImage: "arrow.triangle.branch")
+                    .font(.headline)
+                Spacer()
+                if tunnel.directModeBusy {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            }
+
+            Picker("Маршрут интернета", selection: selection) {
+                ForEach(KCTrafficPath.allCases) { path in
+                    Text(path.title).tag(path)
+                }
+            }
+            .pickerStyle(.segmented)
+            .disabled(tunnel.directModeBusy || tunnel.status != .connected)
+
+            status
+                .font(.caption)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(12)
+        .background(Color(red: 0.96, green: 0.92, blue: 0.86).opacity(0.72))
+        .cornerRadius(14)
+        .padding(.horizontal)
+    }
+
+    @ViewBuilder
+    private var status: some View {
+        if let problem = tunnel.directModeError {
+            Label(problem, systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(.red)
+        } else if tunnel.status != .connected {
+            Text("Выбор станет доступен после подключения")
+                .foregroundColor(.secondary)
+        } else if tunnel.directModeBusy {
+            Text("Переключаю маршрут…")
+                .foregroundColor(.secondary)
+        } else if tunnel.directMode {
+            Text("Трафик идёт напрямую; соединения K&C остаются готовы")
+                .foregroundColor(.orange)
+        } else {
+            Text("Весь трафик защищён туннелем K&C")
+                .foregroundColor(.secondary)
+        }
+    }
+}
