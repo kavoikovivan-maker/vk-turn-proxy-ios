@@ -59,10 +59,10 @@ struct KCShieldRootView: View {
     private var brandHeader: some View {
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 3) {
-                Text("K&C Shield")
+                Text("K&C Smart Proxy")
                     .font(.system(size: 29, weight: .semibold, design: .rounded))
                     .foregroundColor(graphite)
-                Text("Private network companion")
+                Text("Умный маршрут для iPhone")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
             }
@@ -141,7 +141,7 @@ struct KCShieldRootView: View {
                 quickAction(title: "Speed", icon: "gauge.with.dots.needle.50percent")
             }
 
-            NavigationLink(destination: LogsView(tunnel: tunnel)) {
+            NavigationLink(destination: KCNetworkHealthView(tunnel: tunnel)) {
                 quickAction(title: "Health", icon: "waveform.path.ecg")
             }
 
@@ -169,7 +169,7 @@ struct KCShieldRootView: View {
     private var diagnosticsPreview: some View {
         VStack(alignment: .leading, spacing: 13) {
             HStack {
-                Text("Network health")
+                Text("Smart route")
                     .font(.headline)
                     .foregroundColor(graphite)
                 Spacer()
@@ -219,7 +219,7 @@ struct KCShieldRootView: View {
     }
 
     private var statusTitle: String {
-        if tunnel.preBootstrapInProgress { return "Preparing secure route" }
+        if tunnel.preBootstrapInProgress { return "Preparing smart route" }
         switch tunnel.status {
         case .connected: return "Protected"
         case .connecting, .reasserting: return "Connecting"
@@ -231,10 +231,10 @@ struct KCShieldRootView: View {
 
     private var statusSubtitle: String {
         switch tunnel.status {
-        case .connected: return "Your secure tunnel is active"
+        case .connected: return "Smart Proxy route is active"
         case .connecting, .reasserting: return "Finding a stable route"
         case .disconnecting: return "Closing the tunnel safely"
-        default: return "Tap K&C to start protection"
+        default: return "Tap K&C to start"
         }
     }
 
@@ -260,9 +260,9 @@ struct KCShieldRootView: View {
 
     private var healthLabel: String {
         switch tunnel.status {
-        case .connected: return "Good"
+        case .connected: return "Active"
         case .connecting, .reasserting: return "Checking"
-        default: return "Idle"
+        default: return "Ready"
         }
     }
 
