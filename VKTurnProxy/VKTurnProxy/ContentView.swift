@@ -67,6 +67,13 @@ struct ContentView: View {
 
                     SmartRouteModePanel()
 
+                    // The proven DIRECT mechanism used to live only under
+                    // Settings › Advanced. Routing the internet through K&C
+                    // or straight to the system network is an everyday choice,
+                    // so expose it on the home screen without duplicating any
+                    // routing state or implementation.
+                    TrafficRouteModePanel(tunnel: tunnel)
+
                     // Everything that depends on the ACTIVE SERVER — its name,
                     // the blocking-validation caption, the stats and the Connect
                     // button — is one child that observes `ServerStore`, so a
