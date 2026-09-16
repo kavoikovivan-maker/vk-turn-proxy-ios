@@ -28,7 +28,7 @@ targets:
     info:
       path: VKTurnProxy/Info.plist
       properties:
-        CFBundleDisplayName: "K&C Smart VPN"
+        CFBundleDisplayName: "K&C Smart Proxy"
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         # Declare that we don't use non-exempt encryption — only standard

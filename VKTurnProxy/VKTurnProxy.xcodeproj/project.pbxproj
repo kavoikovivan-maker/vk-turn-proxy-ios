@@ -80,6 +80,7 @@
 		FD1864DD0B5915A3945CE086 /* BackupManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D13B015BF30B930DDDB8BBF /* BackupManager.swift */; };
 		FFA100000000000000000001 /* SmartRouteAgent.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFA100000000000000000003 /* SmartRouteAgent.swift */; };
 		FFA100000000000000000002 /* SmartRouteCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFA100000000000000000004 /* SmartRouteCoordinator.swift */; };
+		FFA200000000000000000001 /* KCHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFA200000000000000000002 /* KCHomeView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -182,6 +183,7 @@
 		EB18A0573ABD15BB23B9E7D7 /* VKCallsAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VKCallsAPI.swift; sourceTree = "<group>"; };
 		FFA100000000000000000003 /* SmartRouteAgent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartRouteAgent.swift; sourceTree = "<group>"; };
 		FFA100000000000000000004 /* SmartRouteCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartRouteCoordinator.swift; sourceTree = "<group>"; };
+		FFA200000000000000000002 /* KCHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KCHomeView.swift; sourceTree = "<group>"; };
 		F16CAECB3D91AC18F93D32C0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		FC7905B75584E8ECB5B29CDF /* ServerStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerStore.swift; sourceTree = "<group>"; };
 		FDE10D4B4A2BE32E0DD5E3D4 /* VKTurnProxyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VKTurnProxyApp.swift; sourceTree = "<group>"; };
@@ -284,6 +286,7 @@
 				FC7905B75584E8ECB5B29CDF /* ServerStore.swift */,
 				A54CED450E2D5EC00BF655D8 /* SessionServer.swift */,
 				A648919F90B0D8CBE826BC6E /* SharedLogger.swift */,
+				FFA200000000000000000002 /* KCHomeView.swift */,
 				FFA100000000000000000003 /* SmartRouteAgent.swift */,
 				FFA100000000000000000004 /* SmartRouteCoordinator.swift */,
 				6F8FEAB45E642DBC5ACA8FF7 /* SpeedTestLog.swift */,
@@ -508,6 +511,7 @@
 				6C715D35A7DE938BCED16E7A /* ServerStore.swift in Sources */,
 				A5F981BC28E1E88C8DE0F804 /* SessionServer.swift in Sources */,
 				F5781EB3D4D7E0467DC2A5F5 /* SharedLogger.swift in Sources */,
+				FFA200000000000000000001 /* KCHomeView.swift in Sources */,
 				FFA100000000000000000001 /* SmartRouteAgent.swift in Sources */,
 				FFA100000000000000000002 /* SmartRouteCoordinator.swift in Sources */,
 				82CCE35CF361F2FC25A6388B /* SpeedTestLog.swift in Sources */,

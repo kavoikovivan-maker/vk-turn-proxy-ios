@@ -63,7 +63,7 @@ SOURCES=(
     "$S/ConnectionReport.swift"
 )
 
-require_tracked "$0" "${SOURCES[@]}"
+require_tracked "$0" "${SOURCES[@]}" "$S/KCHomeView.swift"
 
 OUT="$(mktemp -d)/swiftcheck"
 swiftc -o "$OUT" "${SOURCES[@]}"

@@ -46,50 +46,7 @@ struct ContentView: View {
     // live, used the new one. Reading the store at render time in a child
     // removes the class, not the case.
     var body: some View {
-        NavigationView {
-            // ScrollView is the safety net for very small screens
-            // (iPhone SE etc.). When the stats grid grows enough that
-            // it would push Logs/Settings below the visible area, the
-            // user can scroll instead of losing access to them. On
-            // larger screens the content fits without scrolling.
-            ScrollView {
-                VStack(spacing: 16) {
-                    // Status indicator — compact size so the rest of the
-                    // controls stay visible on small screens.
-                    Circle()
-                        .fill(statusColor)
-                        .frame(width: 44, height: 44)
-                        .shadow(color: statusColor.opacity(0.5), radius: 8)
-                        .padding(.top, 8)
-
-                    Text(statusText)
-                        .font(.headline)
-
-                    SmartRouteModePanel()
-
-                    // The proven DIRECT mechanism used to live only under
-                    // Settings › Advanced. Routing the internet through K&C
-                    // or straight to the system network is an everyday choice,
-                    // so expose it on the home screen without duplicating any
-                    // routing state or implementation.
-                    TrafficRouteModePanel(tunnel: tunnel)
-
-                    // Everything that depends on the ACTIVE SERVER — its name,
-                    // the blocking-validation caption, the stats and the Connect
-                    // button — is one child that observes `ServerStore`, so a
-                    // link import or a Live Activity switch re-renders THAT and
-                    // not the NavigationView host.
-                    ActiveServerControls(tunnel: tunnel)
-
-                    // Logs & Settings links
-                    MainNavigationLinks(tunnel: tunnel)
-                        .padding(.bottom, 8)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.top, 8)
-            }
-            .navigationTitle("K&C Smart VPN")
-            .navigationBarTitleDisplayMode(.inline)
+        KCHomeView(tunnel: tunnel)
             .sheet(isPresented: $tunnel.captchaPending) {
                 if let urlStr = tunnel.captchaImageURL, let url = URL(string: urlStr) {
                     CaptchaWebView(
@@ -125,7 +82,6 @@ struct ContentView: View {
             // view so that its inbox observation cannot re-render this body.
             // → ConnectionLinkImport.swift.
             .background(ConnectionLinkImporter())
-        }
     }
 
     // MARK: - Helpers

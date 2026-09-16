@@ -836,10 +836,11 @@ do {
 //     whatever is pushed. That is the build-177/issue-65 pop trap.
 do {
     let content = source("VKTurnProxy/VKTurnProxy/ContentView.swift")
+    let home = source("VKTurnProxy/VKTurnProxy/KCHomeView.swift")
     check(!content.contains("speedTest"),
           "🚨 no speedTest @AppStorage key is declared in the NavigationView host")
-    check(content.contains("SpeedTestView(tunnel: tunnel)"),
-          "and the screen is reached from MainNavigationLinks, which does not observe the tunnel")
+    check(home.contains("SpeedTestView(tunnel: tunnel)"),
+          "and the screen is reached from the Tools bottom sheet without putting its keys on the host")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2309,8 +2310,8 @@ do {
     check(!host.contains("@State "),
           "🚨 …and the host holds NO @State whatsoever, so the snapshot cannot come back under a "
           + "different name")
-    check(host.contains("ActiveServerControls(tunnel: tunnel)"),
-          "the server-dependent controls are reached as a child view")
+    check(host.contains("KCHomeView(tunnel: tunnel)"),
+          "the server-dependent controls are reached through the permanent K&C dashboard child")
 
     guard let cs = content.range(of: "private struct ActiveServerControls: View {"),
           // NOT the "// MARK: - Server Mode" line that follows it: comments are
@@ -2362,6 +2363,16 @@ do {
     check(child.contains("private var connectBlocked: Bool") && child.contains(".disabled(connectBlocked)"),
           "the Connect gate is computed and applied in the same view that renders the name — "
           + "while they lived apart, one could follow the new server and the other the old")
+
+    let home = codeWithoutComments("VKTurnProxy/VKTurnProxy/KCHomeView.swift")
+    check(home.contains("@ObservedObject private var store = ServerStore.shared")
+          && home.contains("KCPowerControl(tunnel: tunnel, server: store.activeServer)"),
+          "the permanent dashboard observes the store and passes the live active profile to its power control")
+    check(home.contains("Text(tunnel.serverCaption.subtitle)"),
+          "the permanent route card uses the shared session caption rather than naming the selected server as running")
+    check(home.contains("private var validationError: String?")
+          && home.contains(".disabled(working || (!connected && validationError != nil))"),
+          "the new round power button keeps the blocking configuration gate")
 }
 
 // 33. ONE ALERT AT A TIME, ONE CONSUMER, ONE APPLY PATH.
@@ -3134,13 +3145,13 @@ do {
     //    BLOCKS Connect, because the id that goes out must be the one on screen
     //    (the user has to match the server's). 2026-09-06: a cleared field
     //    connected with an invisible UUID and was denied with nothing to fix.
-    let contentView = codeWithoutComments("VKTurnProxy/VKTurnProxy/ContentView.swift")
-    if let gate = contentView.range(of: "private var configValidationError: String? {") {
-        let body = String(contentView[gate.upperBound...].prefix(1500))
+    let homeView = codeWithoutComments("VKTurnProxy/VKTurnProxy/KCHomeView.swift")
+    if let gate = homeView.range(of: "private var validationError: String? {") {
+        let body = String(homeView[gate.upperBound...].prefix(1800))
         check(body.contains("ConfigValidation.csqttPassword(") && body.contains("ConfigValidation.csqttDeviceID("),
               "🚨 the Connect gate must require BOTH the csqtt password and the Device ID")
     } else {
-        check(false, "could not find configValidationError")
+        check(false, "could not find the K&C home power-button validation gate")
     }
     // 🚨 THE csqtt CONNECT FORM IS RECOGNISED BY `csqtt://connect?`, WITH THE
     //    `?`: a legacy `csqtt://<password>@<host>:<port>` link whose password
