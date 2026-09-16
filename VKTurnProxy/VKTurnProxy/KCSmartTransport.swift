@@ -1,11 +1,11 @@
 import Foundation
+import Combine
+import NetworkExtension
 
 /// Product-level transport abstraction for K&C Smart Proxy.
 ///
-/// This layer deliberately does not hard-code provider endpoints. Each concrete
-/// transport adapter reports health samples here; the selector then ranks only
-/// adapters that are configured and available. That keeps routing policy
-/// separate from provider-specific networking code.
+/// Provider-specific networking stays outside this selector. Concrete adapters
+/// only report health samples; this layer ranks configured, reachable transports.
 enum KCTransportKind: String, CaseIterable, Identifiable {
     case vk
     case yandex
@@ -40,6 +40,11 @@ struct KCTransportHealth: Identifiable, Equatable {
         let failurePenalty = Double(consecutiveFailures) * 250
         return 10_000 - latencyPenalty - failurePenalty
     }
+
+    var latencyLabel: String {
+        guard let latencyMs else { return "—" }
+        return "\(Int(latencyMs.rounded())) ms"
+    }
 }
 
 @MainActor
@@ -50,15 +55,17 @@ final class KCSmartTransportManager: ObservableObject {
     @Published private(set) var selected: KCTransportKind = .vk
     @Published var automaticSelectionEnabled = true
 
+    private var vkBindings = Set<AnyCancellable>()
+    private var vkTunnelBound = false
+
     private init() {
         transports = KCTransportKind.allCases.map { kind in
-            // VK is the currently integrated production transport. Other
-            // adapters become eligible only after their concrete networking
-            // implementation reports itself configured.
             KCTransportHealth(
                 kind: kind,
                 isConfigured: kind == .vk,
-                isReachable: kind == .vk,
+                // Do not claim VK is reachable until the running tunnel returns
+                // a real stats sample. This avoids a fake green state at launch.
+                isReachable: false,
                 latencyMs: nil,
                 consecutiveFailures: 0,
                 lastUpdated: nil
@@ -66,21 +73,68 @@ final class KCSmartTransportManager: ObservableObject {
         }
     }
 
-    var selectedDisplayName: String {
-        selected.displayName
+    var selectedDisplayName: String { selected.displayName }
+
+    var selectedHealth: KCTransportHealth? {
+        transports.first(where: { $0.kind == selected })
+    }
+
+    var selectedLatencyLabel: String {
+        selectedHealth?.latencyLabel ?? "—"
     }
 
     var bestAvailable: KCTransportKind? {
-        transports.max(by: { $0.score < $1.score })?.score == -.infinity
-            ? nil
-            : transports.max(by: { $0.score < $1.score })?.kind
+        transports
+            .filter { $0.score != -.infinity }
+            .max(by: { $0.score < $1.score })?
+            .kind
+    }
+
+    /// Connect the already-working VK tunnel to Smart Route using real runtime
+    /// telemetry from TunnelManager. TURN RTT is measured by the tunnel engine;
+    /// statsReceivedOnce prevents the all-zero placeholder from being treated as
+    /// a measurement, and statsChannelDown removes VK from eligibility if IPC
+    /// telemetry stops arriving while connected.
+    func bindVK(to tunnel: TunnelManager) {
+        guard !vkTunnelBound else { return }
+        vkTunnelBound = true
+
+        Publishers.CombineLatest4(
+            tunnel.$status,
+            tunnel.live.$stats,
+            tunnel.live.$statsReceivedOnce,
+            tunnel.live.$statsChannelDown
+        )
+        .receive(on: RunLoop.main)
+        .sink { [weak self] status, stats, received, channelDown in
+            guard let self else { return }
+
+            switch status {
+            case .connected:
+                let reachable = received && !channelDown
+                let measuredRTT = stats.turnRTTms > 0 ? stats.turnRTTms : nil
+                self.report(
+                    kind: .vk,
+                    configured: true,
+                    reachable: reachable,
+                    latencyMs: measuredRTT,
+                    countFailure: received && channelDown
+                )
+            case .connecting, .reasserting:
+                self.markWaiting(kind: .vk, configured: true)
+            default:
+                self.markIdle(kind: .vk, configured: true)
+            }
+        }
+        .store(in: &vkBindings)
     }
 
     func report(
         kind: KCTransportKind,
         configured: Bool,
         reachable: Bool,
-        latencyMs: Double?
+        latencyMs: Double?,
+        countFailure: Bool = true
     ) {
         guard let index = transports.firstIndex(where: { $0.kind == kind }) else { return }
 
@@ -89,12 +143,36 @@ final class KCSmartTransportManager: ObservableObject {
         item.isReachable = reachable
         item.latencyMs = latencyMs
         item.lastUpdated = Date()
-        item.consecutiveFailures = reachable ? 0 : item.consecutiveFailures + 1
+        if reachable {
+            item.consecutiveFailures = 0
+        } else if countFailure {
+            item.consecutiveFailures += 1
+        }
         transports[index] = item
 
         if automaticSelectionEnabled {
             chooseBestAvailable()
         }
+    }
+
+    func markIdle(kind: KCTransportKind, configured: Bool) {
+        guard let index = transports.firstIndex(where: { $0.kind == kind }) else { return }
+        var item = transports[index]
+        item.isConfigured = configured
+        item.isReachable = false
+        item.latencyMs = nil
+        item.lastUpdated = Date()
+        transports[index] = item
+    }
+
+    func markWaiting(kind: KCTransportKind, configured: Bool) {
+        guard let index = transports.firstIndex(where: { $0.kind == kind }) else { return }
+        var item = transports[index]
+        item.isConfigured = configured
+        item.isReachable = false
+        item.latencyMs = nil
+        item.lastUpdated = Date()
+        transports[index] = item
     }
 
     func chooseBestAvailable() {
