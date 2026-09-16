@@ -2,10 +2,12 @@ import SwiftUI
 import NetworkExtension
 import UIKit
 
-private let kcInk = Color(red: 0.20, green: 0.11, blue: 0.075)
-private let kcCopper = Color(red: 0.56, green: 0.25, blue: 0.15)
-private let kcCream = Color(red: 0.985, green: 0.965, blue: 0.925)
-private let kcPanel = Color.white.opacity(0.80)
+private let kcInk = Color(white: 0.96)
+private let kcCopper = Color(red: 0.23, green: 0.80, blue: 0.45)
+private let kcBackground = Color(red: 0.055, green: 0.060, blue: 0.070)
+private let kcPanel = Color(red: 0.115, green: 0.120, blue: 0.135)
+private let kcRaised = Color(red: 0.17, green: 0.175, blue: 0.19)
+private let kcOutline = Color.white.opacity(0.075)
 
 private enum KCHomeSheet: String, Identifiable {
     case route, assistant, tools, settings
@@ -20,7 +22,7 @@ private enum KCHomeSheet: String, Identifiable {
     }
 }
 
-/// Permanent light dashboard. Secondary work appears in a bottom sheet, so the
+/// Permanent graphite dashboard. Secondary work appears in a bottom sheet, so the
 /// main VPN state and power control are always one dismissal away.
 struct KCHomeView: View {
     @ObservedObject var tunnel: TunnelManager
@@ -30,9 +32,9 @@ struct KCHomeView: View {
 
     var body: some View {
         ZStack {
-            creamBackground.ignoresSafeArea()
+            graphiteBackground.ignoresSafeArea()
             ScrollView(showsIndicators: false) {
-                VStack(spacing: 14) {
+                VStack(spacing: 10) {
                     header
                     KCPowerControl(tunnel: tunnel, server: store.activeServer)
                     routeCard
@@ -40,25 +42,31 @@ struct KCHomeView: View {
                     configuredRoutes
                     activityCard
                 }
-                .padding(.horizontal, 18)
-                .padding(.top, 10)
+                .padding(.horizontal, 14)
+                .padding(.top, 6)
                 .padding(.bottom, 86)
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) { bottomBar }
         .sheet(item: $sheet) { item in KCHomeBottomSheet(kind: item, tunnel: tunnel) }
         .onAppear { smartRoute.start() }
-        .preferredColorScheme(.light)
+        .preferredColorScheme(.dark)
     }
 
-    private var creamBackground: some View {
-        LinearGradient(colors: [Color(red: 1.0, green: 0.985, blue: 0.96), kcCream],
+    private var graphiteBackground: some View {
+        LinearGradient(colors: [Color(red: 0.10, green: 0.105, blue: 0.12), kcBackground],
                        startPoint: .topLeading, endPoint: .bottomTrailing)
             .overlay(alignment: .topLeading) {
                 Circle()
-                    .fill(Color(red: 0.94, green: 0.84, blue: 0.72).opacity(0.32))
+                    .fill(Color.white.opacity(0.035))
                     .frame(width: 300, height: 300)
                     .offset(x: -170, y: -155)
+            }
+            .overlay(alignment: .topTrailing) {
+                Circle()
+                    .fill(kcCopper.opacity(0.035))
+                    .frame(width: 240, height: 240)
+                    .offset(x: 145, y: -105)
             }
     }
 
@@ -68,7 +76,7 @@ struct KCHomeView: View {
             Spacer()
             VStack(spacing: 0) {
                 Text("K&C")
-                    .font(.system(size: 42, weight: .bold, design: .rounded))
+                    .font(.system(size: 36, weight: .bold, design: .rounded))
                     .tracking(-2)
                 Text("Smart Proxy").font(.system(size: 16, weight: .medium))
             }
@@ -95,7 +103,7 @@ struct KCHomeView: View {
                     .font(.system(size: 24))
                     .foregroundColor(kcCopper)
                     .frame(width: 44, height: 44)
-                    .background(Color.white.opacity(0.75))
+                    .background(kcRaised)
                     .clipShape(Circle())
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Текущий маршрут").font(.caption).foregroundColor(.secondary)
@@ -109,6 +117,7 @@ struct KCHomeView: View {
             }
             .padding(12)
             .background(kcPanel)
+            .overlay(RoundedRectangle(cornerRadius: 17, style: .continuous).stroke(kcOutline, lineWidth: 1))
             .clipShape(RoundedRectangle(cornerRadius: 17, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -133,7 +142,7 @@ struct KCHomeView: View {
                                 .font(.system(size: 15, weight: .bold, design: .rounded))
                                 .foregroundColor(.white)
                                 .frame(width: 34, height: 34)
-                                .background(active ? kcCopper : Color.gray.opacity(0.65))
+                                .background(active ? kcCopper : kcRaised)
                                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                             Text(server.serverName).font(.caption2.weight(.semibold)).foregroundColor(kcInk).lineLimit(1)
                             Label(active ? "Выбран" : "Готов", systemImage: "circle.fill")
@@ -142,6 +151,7 @@ struct KCHomeView: View {
                         .frame(maxWidth: .infinity).padding(.vertical, 10)
                         .background(kcPanel)
                         .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 15, style: .continuous).stroke(kcOutline, lineWidth: 1))
                     }
                     .buttonStyle(.plain)
                 }
@@ -150,7 +160,7 @@ struct KCHomeView: View {
                         VStack(spacing: 6) {
                             Image(systemName: "plus")
                                 .frame(width: 34, height: 34)
-                                .background(Color.white).clipShape(RoundedRectangle(cornerRadius: 10))
+                                .background(kcRaised).clipShape(RoundedRectangle(cornerRadius: 10))
                             Text("Добавить").font(.caption2.weight(.semibold))
                             Text("маршрут").font(.system(size: 9))
                         }
@@ -178,6 +188,7 @@ struct KCHomeView: View {
         }
         .padding(13).background(kcPanel)
         .clipShape(RoundedRectangle(cornerRadius: 17, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 17, style: .continuous).stroke(kcOutline, lineWidth: 1))
     }
 
     private var bottomBar: some View {
@@ -255,14 +266,17 @@ private struct KCPowerControl: View {
         VStack(spacing: 8) {
             Button(action: toggle) {
                 ZStack {
-                    Circle().fill(Color.white.opacity(0.92)).frame(width: 142, height: 142)
-                        .shadow(color: (connected ? Color.green : kcCopper).opacity(0.20), radius: 18)
+                    Circle()
+                        .fill(LinearGradient(colors: [kcRaised, kcPanel], startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .frame(width: 118, height: 118)
+                        .shadow(color: Color.black.opacity(0.55), radius: 20, y: 10)
+                        .overlay(Circle().stroke(Color.white.opacity(0.09), lineWidth: 1))
                     Circle().stroke(connected ? Color.green.opacity(0.60) : kcCopper.opacity(0.38), lineWidth: 2)
-                        .frame(width: 154, height: 154)
+                        .frame(width: 130, height: 130)
                     if working {
                         ProgressView().scaleEffect(1.45).tint(kcCopper)
                     } else {
-                        Image(systemName: "power").font(.system(size: 54, weight: .light))
+                        Image(systemName: "power").font(.system(size: 45, weight: .light))
                             .foregroundColor(connected ? .green : kcInk)
                     }
                 }
@@ -280,7 +294,7 @@ private struct KCPowerControl: View {
                     .padding(.horizontal, 24)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 2)
     }
 
     private func toggle() {
@@ -309,7 +323,7 @@ private struct KCNetworkDashboard: View {
                 Spacer()
                 Text("сейчас").font(.caption2).foregroundColor(.secondary)
                     .padding(.horizontal, 9).padding(.vertical, 4)
-                    .background(Color.white.opacity(0.75)).clipShape(Capsule())
+                    .background(kcRaised).clipShape(Capsule())
             }
             HStack(spacing: 8) {
                 KCMetricCard(title: "Задержка", value: pingText, detail: qualityText,
@@ -378,8 +392,9 @@ private struct KCCompactMetric: View {
             Text(title).font(.system(size: 9)).foregroundColor(.secondary).lineLimit(1)
             Text(value).font(.system(size: 12, weight: .semibold, design: .rounded)).foregroundColor(kcInk).lineLimit(1)
         }
-        .frame(maxWidth: .infinity).padding(.vertical, 8).background(Color.white.opacity(0.62))
+        .frame(maxWidth: .infinity).padding(.vertical, 8).background(kcRaised.opacity(0.75))
         .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).stroke(kcOutline, lineWidth: 1))
     }
 }
 
@@ -397,6 +412,7 @@ private struct KCMetricCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading).padding(12).background(kcPanel)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(kcOutline, lineWidth: 1))
     }
 }
 
@@ -414,6 +430,7 @@ private struct KCUptimeCard: View {
             }
             .frame(maxWidth: .infinity, minHeight: 79, alignment: .leading).padding(12).background(kcPanel)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(kcOutline, lineWidth: 1))
         }
     }
     private func uptime(at date: Date) -> String {
@@ -507,11 +524,17 @@ private struct KCHomeBottomSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Готово") { dismiss() }.foregroundColor(kcCopper)
+                    Button { dismiss() } label: {
+                        Image(systemName: "chevron.down.circle.fill")
+                            .font(.system(size: 23))
+                            .foregroundColor(kcCopper)
+                    }
+                    .accessibilityLabel("Закрыть панель")
                 }
             }
         }
         .kcBottomSheetPresentation()
+        .preferredColorScheme(.dark)
     }
 }
 
@@ -545,7 +568,7 @@ private struct KCRouteSheet: View {
             }
             .padding(16)
         }
-        .background(kcCream.opacity(0.55))
+        .background(kcBackground)
     }
 }
 
@@ -588,59 +611,84 @@ private struct KCAssistantSheet: View {
             }
             Spacer()
         }
-        .padding(16).background(kcCream.opacity(0.55))
+        .padding(16).background(kcBackground)
     }
+}
+
+private enum KCToolPanel {
+    case calculator
 }
 
 private struct KCToolsSheet: View {
     let tunnel: TunnelManager
-    @State private var showCalculator = false
+    @State private var panel: KCToolPanel?
     var body: some View {
-        ScrollView {
-            VStack(spacing: 12) {
-                Button { withAnimation { showCalculator.toggle() } } label: {
-                    KCInsetToolRow(icon: "plus.forwardslash.minus", title: "Калькулятор",
-                                   subtitle: "Быстрые вычисления", expanded: showCalculator)
+        Group {
+            if panel == .calculator {
+                VStack(spacing: 10) {
+                    HStack {
+                        Text("Калькулятор")
+                            .font(.headline)
+                            .foregroundColor(kcInk)
+                        Spacer()
+                        Button { withAnimation(.easeInOut(duration: 0.22)) { panel = nil } } label: {
+                            Image(systemName: "chevron.down.circle.fill")
+                                .font(.system(size: 24))
+                                .foregroundColor(kcCopper)
+                        }
+                        .accessibilityLabel("Свернуть калькулятор")
+                    }
+                    KCCalculatorView()
                 }
-                .buttonStyle(.plain)
-                if showCalculator { KCCalculatorView().transition(.move(edge: .top).combined(with: .opacity)) }
-
-                NavigationLink(destination: SpeedTestView(tunnel: tunnel)) {
-                    KCInsetToolRow(icon: "speedometer", title: "Тест скорости",
-                                   subtitle: "Проверить загрузку и отдачу", expanded: false)
+                .padding(16)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else {
+                ScrollView {
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                        Button { withAnimation(.easeInOut(duration: 0.22)) { panel = .calculator } } label: {
+                            KCCompactTool(icon: "plus.forwardslash.minus", title: "Калькулятор",
+                                          subtitle: "Вычисления")
+                        }
+                        .buttonStyle(.plain)
+                        NavigationLink(destination: SpeedTestView(tunnel: tunnel)) {
+                            KCCompactTool(icon: "speedometer", title: "Скорость",
+                                          subtitle: "Тест сети")
+                        }
+                        NavigationLink(destination: LogsView(tunnel: tunnel)) {
+                            KCCompactTool(icon: "waveform.path.ecg", title: "Диагностика",
+                                          subtitle: "Состояние VPN")
+                        }
+                        NavigationLink(destination: SettingsView()) {
+                            KCCompactTool(icon: "gearshape", title: "Настройки",
+                                          subtitle: "Все параметры")
+                        }
+                    }
+                    .padding(16)
                 }
-                NavigationLink(destination: LogsView(tunnel: tunnel)) {
-                    KCInsetToolRow(icon: "doc.text", title: "Диагностика",
-                                   subtitle: "Журнал работы без секретов", expanded: false)
-                }
-                NavigationLink(destination: SettingsView()) {
-                    KCInsetToolRow(icon: "gearshape", title: "Все настройки",
-                                   subtitle: "Серверы, профили и резервная копия", expanded: false)
-                }
+                .transition(.opacity)
             }
-            .padding(16)
         }
-        .background(kcCream.opacity(0.55))
+        .background(kcBackground)
     }
 }
 
-private struct KCInsetToolRow: View {
+private struct KCCompactTool: View {
     let icon: String, title: String, subtitle: String
-    let expanded: Bool
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon).font(.system(size: 20)).foregroundColor(kcCopper)
-                .frame(width: 42, height: 42).background(Color.white)
+        VStack(alignment: .leading, spacing: 9) {
+            Image(systemName: icon).font(.system(size: 20, weight: .medium)).foregroundColor(kcCopper)
+                .frame(width: 40, height: 40).background(kcRaised)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.headline).foregroundColor(.primary)
-                Text(subtitle).font(.caption).foregroundColor(.secondary)
+                Text(title).font(.subheadline.weight(.semibold)).foregroundColor(kcInk)
+                Text(subtitle).font(.caption2).foregroundColor(.secondary)
             }
-            Spacer()
-            Image(systemName: expanded ? "chevron.up" : "chevron.right").foregroundColor(.secondary)
         }
-        .padding(12).background(Color(UIColor.secondarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+        .frame(maxWidth: .infinity, minHeight: 96, alignment: .leading)
+        .padding(13).background(kcPanel)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
+            .stroke(kcOutline, lineWidth: 1))
     }
 }
 
@@ -655,7 +703,7 @@ private struct KCCalculatorView: View {
         VStack(spacing: 8) {
             Text(display)
                 .font(.system(size: 34, weight: .medium, design: .rounded))
-                .frame(maxWidth: .infinity, alignment: .trailing).padding(14).background(Color.white)
+                .frame(maxWidth: .infinity, alignment: .trailing).padding(14).background(kcRaised)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .lineLimit(1).minimumScaleFactor(0.5)
             ForEach(rows, id: \.self) { row in
@@ -665,7 +713,7 @@ private struct KCCalculatorView: View {
                             .font(.title3.weight(.semibold))
                             .foregroundColor(isAction(key) ? .white : kcInk)
                             .frame(maxWidth: .infinity, minHeight: 46)
-                            .background(isAction(key) ? kcCopper : Color.white)
+                            .background(isAction(key) ? kcCopper : kcRaised)
                             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
                 }
@@ -716,9 +764,13 @@ private struct KCWideButtonStyle: ButtonStyle {
 private extension View {
     @ViewBuilder func kcBottomSheetPresentation() -> some View {
         if #available(iOS 16.4, *) {
-            self.presentationDetents([.medium, .large]).presentationDragIndicator(.visible).presentationCornerRadius(24)
+            self
+                .presentationDetents([.fraction(0.48), .large])
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(28)
+                .presentationBackground(kcBackground)
         } else if #available(iOS 16.0, *) {
-            self.presentationDetents([.medium, .large]).presentationDragIndicator(.visible)
+            self.presentationDetents([.fraction(0.48), .large]).presentationDragIndicator(.visible)
         } else {
             self
         }
