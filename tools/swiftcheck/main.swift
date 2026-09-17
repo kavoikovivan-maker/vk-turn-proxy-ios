@@ -3362,6 +3362,7 @@ do {
               "the receipt shows the name the server actually got")
     }
     let editView = codeWithoutComments("VKTurnProxy/VKTurnProxy/ServerEditView.swift")
+    let contentView = codeWithoutComments("VKTurnProxy/VKTurnProxy/ContentView.swift")
     check(editView.contains("hint(ConfigValidation.csqttDeviceID(draft.csqttDeviceID, onEditScreen: true))"),
           "the edit screen shows the Device ID requirement under the field, in the edit screen's wording")
     // 🚨 THE MAIN SCREEN GENERATES NOTHING, so its wording must not say "open
