@@ -21,60 +21,78 @@ private var kcRaised: Color {
 }
 private var kcOutline: Color { kcDarkTheme ? Color.white.opacity(0.075) : Color.black.opacity(0.08) }
 
-private enum KCHomeSheet: String, Identifiable {
-    case route, assistant, tools
-    var id: String { rawValue }
+private enum KCHomeTab: Int, CaseIterable {
+    case home, route, assistant, tools, settings
     var title: String {
         switch self {
+        case .home: return "Главная"
         case .route: return "Smart Route"
         case .assistant: return "Помощник"
         case .tools: return "Инструменты"
+        case .settings: return "Настройки"
         }
     }
 }
 
-/// Permanent graphite dashboard. Secondary work appears in a bottom sheet, so the
-/// main VPN state and power control are always one dismissal away.
+/// Permanent graphite dashboard with five full-screen sections. The bottom bar
+/// stays in place while the selected page slides horizontally, like a native
+/// iPhone tab interface; none of the primary sections is presented as a sheet.
 struct KCHomeView: View {
     @ObservedObject var tunnel: TunnelManager
     @ObservedObject private var store = ServerStore.shared
     @ObservedObject private var smartRoute = SmartRouteCoordinator.shared
-    @State private var sheet: KCHomeSheet?
-    @State private var showingSettings = false
+    @State private var selectedTab: KCHomeTab = .home
+    @State private var transitionForward = true
     @AppStorage("kcDarkTheme") private var darkTheme = true
     @AppStorage("kcPureBlack") private var pureBlack = false
 
     var body: some View {
-        Group {
-            if showingSettings {
-                KCFullSettingsPage(tunnel: tunnel) {
-                    withAnimation(.easeInOut(duration: 0.24)) { showingSettings = false }
-                }
-                .transition(.move(edge: .trailing).combined(with: .opacity))
-            } else {
-                ZStack {
-                    graphiteBackground.ignoresSafeArea()
-                    ScrollView(showsIndicators: false) {
-                        VStack(spacing: 10) {
-                            header
-                            KCPowerControl(tunnel: tunnel, server: store.activeServer)
-                            routeCard
-                            KCNetworkDashboard(live: tunnel.live, connected: tunnel.status == .connected)
-                            configuredRoutes
-                            activityCard
-                        }
-                        .padding(.horizontal, 14)
-                        .padding(.top, 6)
-                        .padding(.bottom, 86)
-                    }
-                }
-                .safeAreaInset(edge: .bottom, spacing: 0) { bottomBar }
-                .transition(.move(edge: .leading).combined(with: .opacity))
-            }
+        ZStack {
+            graphiteBackground.ignoresSafeArea()
+            page(for: selectedTab)
+                .id(selectedTab.rawValue)
+                .transition(.asymmetric(
+                    insertion: .move(edge: transitionForward ? .trailing : .leading).combined(with: .opacity),
+                    removal: .move(edge: transitionForward ? .leading : .trailing).combined(with: .opacity)
+                ))
         }
-        .sheet(item: $sheet) { item in KCHomeBottomSheet(kind: item, tunnel: tunnel) }
+        .safeAreaInset(edge: .bottom, spacing: 0) { bottomBar }
         .onAppear { smartRoute.start() }
         .preferredColorScheme(darkTheme ? .dark : .light)
+    }
+
+    @ViewBuilder
+    private func page(for tab: KCHomeTab) -> some View {
+        switch tab {
+        case .home:
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 10) {
+                    header
+                    KCPowerControl(tunnel: tunnel, server: store.activeServer)
+                    routeCard
+                    KCNetworkDashboard(live: tunnel.live, connected: tunnel.status == .connected)
+                    configuredRoutes
+                    activityCard
+                }
+                .padding(.horizontal, 14)
+                .padding(.top, 6)
+                .padding(.bottom, 16)
+            }
+        case .route:
+            KCFullSectionPage(title: tab.title, onBack: { select(.home) }) {
+                KCRouteSheet(tunnel: tunnel)
+            }
+        case .assistant:
+            KCFullSectionPage(title: tab.title, onBack: { select(.home) }) {
+                KCAssistantSheet(tunnel: tunnel)
+            }
+        case .tools:
+            KCFullSectionPage(title: tab.title, onBack: { select(.home) }) {
+                KCToolsSheet(tunnel: tunnel)
+            }
+        case .settings:
+            KCFullSettingsPage(tunnel: tunnel) { select(.home) }
+        }
     }
 
     private var graphiteBackground: some View {
@@ -97,7 +115,7 @@ struct KCHomeView: View {
 
     private var header: some View {
         HStack(alignment: .top) {
-            headerButton("gearshape") { withAnimation(.easeInOut(duration: 0.24)) { showingSettings = true } }
+            headerButton("gearshape") { select(.settings) }
             Spacer()
             VStack(spacing: 0) {
                 Text("K&C")
@@ -107,7 +125,7 @@ struct KCHomeView: View {
             }
             .foregroundColor(kcInk)
             Spacer()
-            headerButton("chart.bar.xaxis") { sheet = .tools }
+            headerButton("chart.bar.xaxis") { select(.tools) }
         }
     }
 
@@ -122,7 +140,7 @@ struct KCHomeView: View {
     }
 
     private var routeCard: some View {
-        Button { sheet = .route } label: {
+        Button { select(.route) } label: {
             HStack(spacing: 12) {
                 Image(systemName: "globe.europe.africa")
                     .font(.system(size: 24))
@@ -153,14 +171,14 @@ struct KCHomeView: View {
             HStack {
                 Text("Маршруты").font(.headline).foregroundColor(kcInk)
                 Spacer()
-                Button("Все") { sheet = .route }.font(.caption).foregroundColor(kcCopper)
+                Button("Все") { select(.route) }.font(.caption).foregroundColor(kcCopper)
             }
             HStack(spacing: 8) {
                 ForEach(Array(store.servers.prefix(3))) { server in
                     let active = server.id == store.activeServerId
                     Button {
                         store.activate(server.id)
-                        sheet = .route
+                        select(.route)
                     } label: {
                         VStack(spacing: 5) {
                             Text(monogram(server.serverName))
@@ -181,7 +199,7 @@ struct KCHomeView: View {
                     .buttonStyle(.plain)
                 }
                 ForEach(0..<max(0, 3 - store.servers.count), id: \.self) { _ in
-                    Button { withAnimation(.easeInOut(duration: 0.24)) { showingSettings = true } } label: {
+                    Button { select(.settings) } label: {
                         VStack(spacing: 6) {
                             Image(systemName: "plus")
                                 .frame(width: 34, height: 34)
@@ -218,18 +236,21 @@ struct KCHomeView: View {
 
     private var bottomBar: some View {
         HStack(spacing: 0) {
-            KCBottomButton(title: "Главная", icon: "house.fill", selected: sheet == nil) { sheet = nil }
-            KCBottomButton(title: "Маршрут", icon: "point.topleft.down.curvedto.point.bottomright.up", selected: sheet == .route) { sheet = .route }
-            KCBottomButton(title: "Помощник", icon: "face.smiling", selected: sheet == .assistant) { sheet = .assistant }
-            KCBottomButton(title: "Инструменты", icon: "shippingbox", selected: sheet == .tools) { sheet = .tools }
-            KCBottomButton(title: "Settings", icon: "gearshape.fill", selected: false) {
-                sheet = nil
-                withAnimation(.easeInOut(duration: 0.24)) { showingSettings = true }
-            }
+            KCBottomButton(title: "Главная", icon: "house.fill", selected: selectedTab == .home) { select(.home) }
+            KCBottomButton(title: "Маршрут", icon: "point.topleft.down.curvedto.point.bottomright.up", selected: selectedTab == .route) { select(.route) }
+            KCBottomButton(title: "Помощник", icon: "face.smiling", selected: selectedTab == .assistant) { select(.assistant) }
+            KCBottomButton(title: "Инструменты", icon: "shippingbox", selected: selectedTab == .tools) { select(.tools) }
+            KCBottomButton(title: "Настройки", icon: "gearshape.fill", selected: selectedTab == .settings) { select(.settings) }
         }
         .padding(.top, 8).padding(.horizontal, 8)
         .background(.ultraThinMaterial)
         .overlay(alignment: .top) { Divider().opacity(0.45) }
+    }
+
+    private func select(_ tab: KCHomeTab) {
+        guard tab != selectedTab else { return }
+        transitionForward = tab.rawValue > selectedTab.rawValue
+        withAnimation(.easeInOut(duration: 0.26)) { selectedTab = tab }
     }
 
     private var statusText: String {
@@ -534,36 +555,38 @@ private struct KCBottomButton: View {
     }
 }
 
-private struct KCHomeBottomSheet: View {
-    let kind: KCHomeSheet
-    @ObservedObject var tunnel: TunnelManager
-    @Environment(\.dismiss) private var dismiss
-    @AppStorage("kcDarkTheme") private var darkTheme = true
+private struct KCFullSectionPage<Content: View>: View {
+    let title: String
+    let onBack: () -> Void
+    let content: Content
+
+    init(title: String, onBack: @escaping () -> Void, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.onBack = onBack
+        self.content = content()
+    }
 
     var body: some View {
-        NavigationView {
-            Group {
-                switch kind {
-                case .route: KCRouteSheet(tunnel: tunnel)
-                case .assistant: KCAssistantSheet(tunnel: tunnel)
-                case .tools: KCToolsSheet(tunnel: tunnel)
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                Button(action: onBack) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(kcCopper)
+                        .frame(width: 40, height: 40)
                 }
+                Text(title)
+                    .font(.system(size: 20, weight: .semibold, design: .rounded))
+                    .foregroundColor(kcInk)
+                Spacer()
             }
-            .navigationTitle(kind.title)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button { dismiss() } label: {
-                        Image(systemName: "chevron.down.circle.fill")
-                            .font(.system(size: 23))
-                            .foregroundColor(kcCopper)
-                    }
-                    .accessibilityLabel("Закрыть панель")
-                }
-            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(.ultraThinMaterial)
+            Divider().opacity(0.35)
+            content.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .kcBottomSheetPresentation()
-        .preferredColorScheme(darkTheme ? .dark : .light)
+        .background(kcBackground.ignoresSafeArea())
     }
 }
 
@@ -1194,21 +1217,5 @@ private struct KCWideButtonStyle: ButtonStyle {
             .frame(maxWidth: .infinity, alignment: .leading).padding(13)
             .background(Color(UIColor.secondarySystemBackground).opacity(configuration.isPressed ? 0.7 : 1))
             .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
-    }
-}
-
-private extension View {
-    @ViewBuilder func kcBottomSheetPresentation() -> some View {
-        if #available(iOS 16.4, *) {
-            self
-                .presentationDetents([.fraction(0.48), .large])
-                .presentationDragIndicator(.visible)
-                .presentationCornerRadius(28)
-                .presentationBackground(kcBackground)
-        } else if #available(iOS 16.0, *) {
-            self.presentationDetents([.fraction(0.48), .large]).presentationDragIndicator(.visible)
-        } else {
-            self
-        }
     }
 }
