@@ -6,7 +6,7 @@ import UniformTypeIdentifiers
 private var kcDarkTheme: Bool { UserDefaults.standard.object(forKey: "kcDarkTheme") as? Bool ?? true }
 private var kcPureBlack: Bool { UserDefaults.standard.bool(forKey: "kcPureBlack") }
 private var kcInk: Color { kcDarkTheme ? Color(white: 0.96) : Color(white: 0.08) }
-private let kcCopper = Color(red: 0.23, green: 0.80, blue: 0.45)
+private let kcCopper = Color(red: 0.27, green: 0.91, blue: 0.82)
 private var kcBackground: Color {
     kcDarkTheme ? (kcPureBlack ? .black : Color(red: 0.055, green: 0.060, blue: 0.070))
                 : Color(red: 0.955, green: 0.945, blue: 0.925)
@@ -19,7 +19,7 @@ private var kcRaised: Color {
     kcDarkTheme ? (kcPureBlack ? Color(white: 0.13) : Color(red: 0.17, green: 0.175, blue: 0.19))
                 : Color(red: 0.89, green: 0.88, blue: 0.86)
 }
-private var kcOutline: Color { kcDarkTheme ? Color.white.opacity(0.075) : Color.black.opacity(0.08) }
+private var kcOutline: Color { kcDarkTheme ? Color.white.opacity(0.16) : Color.black.opacity(0.13) }
 
 private enum KCHomeTab: Int, CaseIterable {
     case assistant, home, settings
@@ -278,8 +278,8 @@ struct KCHomeView: View {
             KCBottomButton(title: "Настройки", icon: "gearshape.fill", selected: selectedTab == .settings) { select(.settings) }
         }
         .padding(.top, 8).padding(.horizontal, 8)
-        .background(.ultraThinMaterial)
-        .overlay(alignment: .top) { Divider().opacity(0.45) }
+        .background(kcPanel)
+        .overlay(alignment: .top) { Rectangle().fill(kcOutline).frame(height: 1) }
     }
 
     private func select(_ tab: KCHomeTab) {
@@ -419,7 +419,6 @@ private struct KCPowerControl: View {
                     Circle()
                         .fill(LinearGradient(colors: [kcRaised, kcPanel], startPoint: .topLeading, endPoint: .bottomTrailing))
                         .frame(width: 118, height: 118)
-                        .shadow(color: Color.black.opacity(0.55), radius: 20, y: 10)
                         .overlay(Circle().stroke(Color.white.opacity(0.09), lineWidth: 1))
                     Circle().stroke(connected ? Color.green.opacity(0.60) : kcCopper.opacity(0.38), lineWidth: 2)
                         .frame(width: 130, height: 130)
@@ -645,7 +644,7 @@ private struct KCBottomButton: View {
     var body: some View {
         Button(action: action) {
             VStack(spacing: 3) {
-                Image(systemName: icon).font(.system(size: 18, weight: .medium))
+                Image(systemName: icon).font(.system(size: 19, weight: .light))
                 Text(title).font(.system(size: 10, weight: selected ? .semibold : .regular))
             }
             .foregroundColor(selected ? kcCopper : .secondary)
@@ -664,7 +663,7 @@ private struct KCQuickAction: View {
         Button(action: action) {
             VStack(spacing: 5) {
                 Image(systemName: icon)
-                    .font(.system(size: 18, weight: .medium))
+                    .font(.system(size: 20, weight: .light))
                     .frame(height: 22)
                 Text(title)
                     .font(.system(size: 10, weight: .medium))
@@ -698,7 +697,7 @@ private struct KCFullSectionPage<Content: View>: View {
             HStack(spacing: 12) {
                 Button(action: onBack) {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(.system(size: 18, weight: .regular))
                         .foregroundColor(kcCopper)
                         .frame(width: 40, height: 40)
                 }
@@ -709,8 +708,8 @@ private struct KCFullSectionPage<Content: View>: View {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(.ultraThinMaterial)
-            Divider().opacity(0.35)
+            .background(kcPanel)
+            Rectangle().fill(kcOutline).frame(height: 1)
             content.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(kcBackground.ignoresSafeArea())
@@ -799,7 +798,7 @@ private struct KCSecurityHub: View {
     private func securityButton(_ title: String, _ icon: String, _ subtitle: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Image(systemName: icon)
-                .font(.system(size: 22, weight: .medium))
+                .font(.system(size: 22, weight: .light))
                 .foregroundColor(kcCopper)
             Text(title).font(.subheadline.weight(.semibold)).foregroundColor(kcInk)
             Text(subtitle).font(.caption2).foregroundColor(.secondary)
@@ -815,43 +814,137 @@ private struct KCSecurityHub: View {
 private struct KCAssistantSheet: View {
     @ObservedObject var tunnel: TunnelManager
     @ObservedObject private var coordinator = SmartRouteCoordinator.shared
+    @ObservedObject private var store = ServerStore.shared
+    @StateObject private var conversation = KCAssistantConversation()
+    @AppStorage("kcAssistantEndpoint") private var endpoint = ""
     @State private var question = ""
-    @State private var answer = "Я слежу за соединением и подскажу, что происходит."
+    @FocusState private var inputFocused: Bool
 
     var body: some View {
-        VStack(spacing: 14) {
-            HStack(alignment: .top, spacing: 10) {
-                Image(systemName: "sparkles").foregroundColor(kcCopper)
-                Text(answer).font(.subheadline).frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .padding(14).background(Color(UIColor.secondarySystemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
-
-            Button("Почему выбран этот маршрут?") {
-                answer = coordinator.statusText + ". Активный профиль: " + ServerStore.shared.activeServer.serverName + "."
-            }
-            .buttonStyle(KCWideButtonStyle())
-            Button("Как качество интернета?") {
-                let ping = tunnel.live.internetRTTms
-                answer = ping > 0
-                    ? "Текущая задержка \(Int(ping)) мс. " + (ping < 180 ? "Соединение хорошее." : "Есть заметная задержка.")
-                    : "Пока собираю реальные показатели соединения."
-            }
-            .buttonStyle(KCWideButtonStyle())
-
-            HStack {
-                TextField("Задайте вопрос…", text: $question).textFieldStyle(.roundedBorder)
-                Button {
-                    guard !question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-                    answer = "Вопрос сохранён. Полного агента подключим к этому окну; данные VPN уже доступны."
-                    question = ""
-                } label: {
-                    Image(systemName: "arrow.up.circle.fill").font(.system(size: 30)).foregroundColor(kcCopper)
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 19, weight: .light))
+                    .foregroundColor(kcCopper)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("K&C GPT").font(.headline).foregroundColor(kcInk)
+                    Text(endpoint.isEmpty ? "Помощник устройства" : "GPT подключён")
+                        .font(.caption2).foregroundColor(.secondary)
+                }
+                Spacer()
+                Button(action: conversation.clear) {
+                    Image(systemName: "trash")
+                        .foregroundColor(.secondary)
+                        .frame(width: 36, height: 36)
                 }
             }
-            Spacer()
+            .padding(.horizontal, 16).padding(.vertical, 8)
+            .background(kcPanel)
+            .overlay(alignment: .bottom) { Rectangle().fill(kcOutline).frame(height: 1) }
+
+            ScrollViewReader { proxy in
+                ScrollView(showsIndicators: false) {
+                    LazyVStack(spacing: 10) {
+                        ForEach(conversation.messages) { message in
+                            KCAssistantBubble(message: message).id(message.id)
+                        }
+                        if conversation.isSending {
+                            HStack(spacing: 6) {
+                                ProgressView().scaleEffect(0.8)
+                                Text("Думаю…").font(.caption).foregroundColor(.secondary)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 12)
+                        }
+                    }
+                    .padding(14)
+                }
+                .onChange(of: conversation.messages.count) { _ in
+                    guard let last = conversation.messages.last else { return }
+                    withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(last.id, anchor: .bottom) }
+                }
+            }
+
+            if let error = conversation.errorText {
+                Text(error).font(.caption2).foregroundColor(.orange)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16).padding(.top, 4)
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    quickQuestion("Почему этот маршрут?")
+                    quickQuestion("Как интернет?")
+                    quickQuestion("VPN защищён?")
+                }
+                .padding(.horizontal, 14).padding(.top, 7)
+            }
+
+            HStack(spacing: 9) {
+                TextField("Сообщение…", text: $question)
+                    .focused($inputFocused)
+                    .submitLabel(.send)
+                    .onSubmit(send)
+                    .padding(.horizontal, 13).padding(.vertical, 10)
+                    .background(kcRaised)
+                    .clipShape(RoundedRectangle(cornerRadius: 17, style: .continuous))
+                Button {
+                    send()
+                } label: {
+                    Image(systemName: "arrow.up")
+                        .font(.system(size: 17, weight: .bold)).foregroundColor(.black)
+                        .frame(width: 40, height: 40).background(kcCopper).clipShape(Circle())
+                }
+                .disabled(conversation.isSending || question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+            .padding(.horizontal, 14).padding(.vertical, 10)
+            .background(kcPanel)
+            .overlay(alignment: .top) { Rectangle().fill(kcOutline).frame(height: 1) }
         }
-        .padding(16).background(kcBackground)
+        .background(kcBackground)
+    }
+
+    private func quickQuestion(_ title: String) -> some View {
+        Button(title) { send(title) }
+            .font(.caption.weight(.medium)).foregroundColor(kcInk)
+            .padding(.horizontal, 11).padding(.vertical, 7)
+            .background(kcPanel)
+            .clipShape(Capsule())
+            .overlay(Capsule().stroke(kcOutline, lineWidth: 1))
+    }
+
+    private func send() {
+        send(question)
+    }
+
+    private func send(_ text: String) {
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        question = ""
+        inputFocused = false
+        Task { await conversation.send(text, endpoint: endpoint, networkContext: networkContext) }
+    }
+
+    private var networkContext: String {
+        let status = tunnel.status == .connected ? "подключено" : "не подключено"
+        let ping = tunnel.live.internetRTTms > 0 ? "\(Int(tunnel.live.internetRTTms)) мс" : "ещё измеряется"
+        return "K&C: \(status). Профиль: \(store.activeServer.serverName). Интернет: \(ping). Smart Route: \(coordinator.statusText)."
+    }
+}
+
+private struct KCAssistantBubble: View {
+    let message: KCAssistantMessage
+    var body: some View {
+        HStack {
+            if message.role == .user { Spacer(minLength: 46) }
+            Text(message.text)
+                .font(.subheadline)
+                .foregroundColor(message.role == .user ? .black : kcInk)
+                .padding(.horizontal, 13).padding(.vertical, 10)
+                .background(message.role == .user ? kcCopper : kcPanel)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(message.role == .user ? Color.clear : kcOutline, lineWidth: 1))
+            if message.role == .assistant { Spacer(minLength: 46) }
+        }
     }
 }
 
@@ -940,7 +1033,7 @@ private struct KCSlidingPanel<Content: View>: View {
 }
 
 private enum KCSettingsPanel: Hashable {
-    case appearance, connection, vk, servers, server(UUID), advanced, backup
+    case appearance, assistant, connection, vk, servers, server(UUID), advanced, backup
 }
 
 private struct KCFullSettingsPage: View {
@@ -984,6 +1077,7 @@ private struct KCSettingsHub: View {
                         KCSettingsVKStatusCard { show(.vk) }
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                             settingButton(.appearance, "circle.lefthalf.filled", "Оформление", "Светлая · графит · чёрная")
+                            settingButton(.assistant, "sparkles", "GPT", "Подключение помощника")
                             settingButton(.connection, "point.3.connected.trianglepath.dotted", "Подключение", "Smart Route и DIRECT")
                             settingButton(.vk, "person.crop.circle.badge.checkmark", "VK и вход", "Ссылки и сессия")
                             settingButton(.servers, "server.rack", "Серверы", "Протоколы и ключи")
@@ -1002,6 +1096,7 @@ private struct KCSettingsHub: View {
     @ViewBuilder private func panelContent(_ panel: KCSettingsPanel) -> some View {
         switch panel {
         case .appearance: KCAppearancePanel()
+        case .assistant: KCAssistantSettingsPanel()
         case .connection: KCRouteSheet(tunnel: tunnel)
         case .vk: KCVKSettingsPanel()
         case .servers: KCServerListPanel { show(.server($0)) }
@@ -1024,6 +1119,7 @@ private struct KCSettingsHub: View {
     private func title(_ panel: KCSettingsPanel) -> String {
         switch panel {
         case .appearance: return "Оформление"
+        case .assistant: return "GPT"
         case .connection: return "Подключение"
         case .vk: return "VK и вход"
         case .servers: return "Серверы"
@@ -1031,6 +1127,45 @@ private struct KCSettingsHub: View {
         case .advanced: return "Расширенные"
         case .backup: return "Резерв и импорт"
         }
+    }
+}
+
+private struct KCAssistantSettingsPanel: View {
+    @AppStorage("kcAssistantEndpoint") private var endpoint = ""
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 9) {
+                    Label(endpoint.isEmpty ? "Работает локальный помощник" : "GPT-сервер подключён",
+                          systemImage: endpoint.isEmpty ? "iphone" : "checkmark.circle.fill")
+                        .font(.headline).foregroundColor(endpoint.isEmpty ? kcInk : kcCopper)
+                    Text("Локальный режим объясняет VPN и качество сети. После подключения сервера здесь же заработают ответы на общие вопросы.")
+                        .font(.caption).foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(15).background(kcPanel)
+                .clipShape(RoundedRectangle(cornerRadius: 17, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 7) {
+                    Text("Адрес GPT-сервера").font(.caption.weight(.semibold)).foregroundColor(.secondary)
+                    TextField("https://…/chat", text: $endpoint)
+                        .textInputAutocapitalization(.never)
+                        .disableAutocorrection(true)
+                        .keyboardType(.URL)
+                        .padding(12).background(kcRaised)
+                        .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                }
+                .padding(15).background(kcPanel)
+                .clipShape(RoundedRectangle(cornerRadius: 17, style: .continuous))
+
+                Label("Секретный ключ модели хранится только на нашем сервере и никогда не записывается в приложение.", systemImage: "lock.shield.fill")
+                    .font(.caption).foregroundColor(.secondary)
+                    .padding(.horizontal, 4)
+            }
+            .padding(16)
+        }
+        .background(kcBackground)
     }
 }
 
@@ -1278,7 +1413,7 @@ private struct KCBackupPanel: View {
     private func action(_ title: String, _ icon: String, destructive: Bool = false, _ work: @escaping () -> Void) -> some View {
         Button(action: work) {
             HStack(spacing: 12) {
-                Image(systemName: icon).font(.title3).frame(width: 28)
+                Image(systemName: icon).font(.system(size: 20, weight: .light)).frame(width: 28)
                 Text(title).font(.subheadline.weight(.medium))
                 Spacer()
                 Image(systemName: "chevron.right").font(.caption).foregroundColor(.secondary)
@@ -1323,7 +1458,7 @@ private struct KCCompactTool: View {
     let icon: String, title: String, subtitle: String
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
-            Image(systemName: icon).font(.system(size: 20, weight: .medium)).foregroundColor(kcCopper)
+            Image(systemName: icon).font(.system(size: 21, weight: .light)).foregroundColor(kcCopper)
                 .frame(width: 40, height: 40).background(kcRaised)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
