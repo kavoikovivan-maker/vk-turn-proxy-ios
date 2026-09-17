@@ -22,19 +22,30 @@ private var kcRaised: Color {
 private var kcOutline: Color { kcDarkTheme ? Color.white.opacity(0.075) : Color.black.opacity(0.08) }
 
 private enum KCHomeTab: Int, CaseIterable {
-    case home, route, assistant, tools, settings
+    case assistant, home, settings
     var title: String {
         switch self {
-        case .home: return "Главная"
-        case .route: return "Smart Route"
-        case .assistant: return "Помощник"
-        case .tools: return "Инструменты"
+        case .assistant: return "GPT"
+        case .home: return "Дом"
         case .settings: return "Настройки"
         }
     }
 }
 
-/// Permanent graphite dashboard with five full-screen sections. The bottom bar
+private enum KCHomeSection {
+    case route, logs, speed, security
+
+    var title: String {
+        switch self {
+        case .route: return "Smart Route"
+        case .logs: return "Диагностика"
+        case .speed: return "Тест скорости"
+        case .security: return "Безопасность"
+        }
+    }
+}
+
+/// Permanent graphite dashboard with three full-screen sections. The bottom bar
 /// stays in place while the selected page slides horizontally, like a native
 /// iPhone tab interface; none of the primary sections is presented as a sheet.
 struct KCHomeView: View {
@@ -42,7 +53,9 @@ struct KCHomeView: View {
     @ObservedObject private var store = ServerStore.shared
     @ObservedObject private var smartRoute = SmartRouteCoordinator.shared
     @State private var selectedTab: KCHomeTab = .home
+    @State private var homeSection: KCHomeSection?
     @State private var transitionForward = true
+    @AppStorage("kcConnectionKind") private var connectionKind = "proxy"
     @AppStorage("kcDarkTheme") private var darkTheme = true
     @AppStorage("kcPureBlack") private var pureBlack = false
 
@@ -65,33 +78,47 @@ struct KCHomeView: View {
     private func page(for tab: KCHomeTab) -> some View {
         switch tab {
         case .home:
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 10) {
-                    header
-                    KCPowerControl(tunnel: tunnel, server: store.activeServer)
-                    routeCard
-                    KCNetworkDashboard(live: tunnel.live, connected: tunnel.status == .connected)
-                    configuredRoutes
-                    activityCard
+            if let section = homeSection {
+                KCFullSectionPage(title: section.title, onBack: { showHomeSection(nil) }) {
+                    homeSectionContent(section)
                 }
-                .padding(.horizontal, 14)
-                .padding(.top, 6)
-                .padding(.bottom, 16)
-            }
-        case .route:
-            KCFullSectionPage(title: tab.title, onBack: { select(.home) }) {
-                KCRouteSheet(tunnel: tunnel)
-            }
+            } else { homeDashboard }
         case .assistant:
-            KCFullSectionPage(title: tab.title, onBack: { select(.home) }) {
-                KCAssistantSheet(tunnel: tunnel)
-            }
-        case .tools:
-            KCFullSectionPage(title: tab.title, onBack: { select(.home) }) {
-                KCToolsSheet(tunnel: tunnel)
-            }
+            KCAssistantSheet(tunnel: tunnel)
         case .settings:
             KCFullSettingsPage(tunnel: tunnel) { select(.home) }
+        }
+    }
+
+    private var homeDashboard: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 10) {
+                header
+                KCConnectionKindPicker(selection: $connectionKind)
+                if connectionKind == "proxy" {
+                    KCPowerControl(tunnel: tunnel, server: store.activeServer)
+                } else {
+                    KCDirectVPNSetupCard { select(.settings) }
+                }
+                routeCard
+                KCNetworkDashboard(live: tunnel.live, connected: tunnel.status == .connected)
+                quickActions
+                configuredRoutes
+                activityCard
+            }
+            .padding(.horizontal, 14)
+            .padding(.top, 6)
+            .padding(.bottom, 16)
+        }
+    }
+
+    @ViewBuilder
+    private func homeSectionContent(_ section: KCHomeSection) -> some View {
+        switch section {
+        case .route: KCRouteSheet(tunnel: tunnel)
+        case .logs: LogsView(tunnel: tunnel)
+        case .speed: SpeedTestView(tunnel: tunnel)
+        case .security: KCSecurityHub(tunnel: tunnel)
         }
     }
 
@@ -125,7 +152,7 @@ struct KCHomeView: View {
             }
             .foregroundColor(kcInk)
             Spacer()
-            headerButton("chart.bar.xaxis") { select(.tools) }
+            headerButton("shield.lefthalf.filled") { showHomeSection(.security) }
         }
     }
 
@@ -140,7 +167,7 @@ struct KCHomeView: View {
     }
 
     private var routeCard: some View {
-        Button { select(.route) } label: {
+        Button { showHomeSection(.route) } label: {
             HStack(spacing: 12) {
                 Image(systemName: "globe.europe.africa")
                     .font(.system(size: 24))
@@ -171,14 +198,14 @@ struct KCHomeView: View {
             HStack {
                 Text("Маршруты").font(.headline).foregroundColor(kcInk)
                 Spacer()
-                Button("Все") { select(.route) }.font(.caption).foregroundColor(kcCopper)
+                Button("Все") { showHomeSection(.route) }.font(.caption).foregroundColor(kcCopper)
             }
             HStack(spacing: 8) {
                 ForEach(Array(store.servers.prefix(3))) { server in
                     let active = server.id == store.activeServerId
                     Button {
                         store.activate(server.id)
-                        select(.route)
+                        showHomeSection(.route)
                     } label: {
                         VStack(spacing: 5) {
                             Text(monogram(server.serverName))
@@ -234,12 +261,20 @@ struct KCHomeView: View {
         .overlay(RoundedRectangle(cornerRadius: 17, style: .continuous).stroke(kcOutline, lineWidth: 1))
     }
 
+    private var quickActions: some View {
+        HStack(spacing: 8) {
+            KCQuickAction(title: "Logs", icon: "doc.text") { showHomeSection(.logs) }
+            KCQuickAction(title: "Speed", icon: "speedometer") { showHomeSection(.speed) }
+            KCQuickAction(title: "Защита", icon: "shield.checkered") { showHomeSection(.security) }
+            KCQuickAction(title: "Settings", icon: "gearshape") { select(.settings) }
+        }
+        .padding(.vertical, 4)
+    }
+
     private var bottomBar: some View {
         HStack(spacing: 0) {
-            KCBottomButton(title: "Главная", icon: "house.fill", selected: selectedTab == .home) { select(.home) }
-            KCBottomButton(title: "Маршрут", icon: "point.topleft.down.curvedto.point.bottomright.up", selected: selectedTab == .route) { select(.route) }
-            KCBottomButton(title: "Помощник", icon: "face.smiling", selected: selectedTab == .assistant) { select(.assistant) }
-            KCBottomButton(title: "Инструменты", icon: "shippingbox", selected: selectedTab == .tools) { select(.tools) }
+            KCBottomButton(title: "GPT", icon: "sparkles", selected: selectedTab == .assistant) { select(.assistant) }
+            KCBottomButton(title: "Дом", icon: "house.fill", selected: selectedTab == .home) { select(.home) }
             KCBottomButton(title: "Настройки", icon: "gearshape.fill", selected: selectedTab == .settings) { select(.settings) }
         }
         .padding(.top, 8).padding(.horizontal, 8)
@@ -251,6 +286,10 @@ struct KCHomeView: View {
         guard tab != selectedTab else { return }
         transitionForward = tab.rawValue > selectedTab.rawValue
         withAnimation(.easeInOut(duration: 0.26)) { selectedTab = tab }
+    }
+
+    private func showHomeSection(_ section: KCHomeSection?) {
+        withAnimation(.easeInOut(duration: 0.24)) { homeSection = section }
     }
 
     private var statusText: String {
@@ -276,6 +315,67 @@ struct KCHomeView: View {
     private func monogram(_ name: String) -> String {
         let result = String(name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(2)).uppercased()
         return result.isEmpty ? "K&C" : result
+    }
+}
+
+private struct KCConnectionKindPicker: View {
+    @Binding var selection: String
+
+    var body: some View {
+        HStack(spacing: 4) {
+            modeButton("VPN", value: "vpn", icon: "lock.shield")
+            modeButton("Smart Proxy", value: "proxy", icon: "point.3.connected.trianglepath.dotted")
+        }
+        .padding(4)
+        .background(kcPanel)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(kcOutline, lineWidth: 1))
+    }
+
+    private func modeButton(_ title: String, value: String, icon: String) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) { selection = value }
+        } label: {
+            Label(title, systemImage: icon)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(selection == value ? .white : .secondary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(selection == value ? kcCopper : Color.clear)
+                .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct KCDirectVPNSetupCard: View {
+    let openSettings: () -> Void
+
+    var body: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "lock.shield")
+                .font(.system(size: 34, weight: .medium))
+                .foregroundColor(kcCopper)
+            Text("Обычный VPN")
+                .font(.headline)
+                .foregroundColor(kcInk)
+            Text("Прямой WireGuard-профиль будет подключаться здесь. Smart Proxy уже настроен и доступен во второй вкладке переключателя.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+            Button("Настроить VPN", action: openSettings)
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(.white)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 10)
+                .background(kcCopper)
+                .clipShape(Capsule())
+        }
+        .frame(maxWidth: .infinity)
+        .padding(16)
+        .background(kcPanel)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(kcOutline, lineWidth: 1))
     }
 }
 
@@ -555,6 +655,33 @@ private struct KCBottomButton: View {
     }
 }
 
+private struct KCQuickAction: View {
+    let title: String
+    let icon: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.system(size: 18, weight: .medium))
+                    .frame(height: 22)
+                Text(title)
+                    .font(.system(size: 10, weight: .medium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+            .foregroundColor(kcInk)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .background(kcPanel)
+            .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 13, style: .continuous).stroke(kcOutline, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 private struct KCFullSectionPage<Content: View>: View {
     let title: String
     let onBack: () -> Void
@@ -621,6 +748,67 @@ private struct KCRouteSheet: View {
             .padding(16)
         }
         .background(kcBackground)
+    }
+}
+
+private struct KCSecurityHub: View {
+    @ObservedObject var tunnel: TunnelManager
+    @ObservedObject private var store = ServerStore.shared
+
+    var body: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 12) {
+                HStack(spacing: 12) {
+                    Image(systemName: tunnel.status == .connected ? "checkmark.shield.fill" : "shield")
+                        .font(.system(size: 30))
+                        .foregroundColor(tunnel.status == .connected ? .green : kcCopper)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(tunnel.status == .connected ? "Соединение защищено" : "Защита готова")
+                            .font(.headline)
+                            .foregroundColor(kcInk)
+                        Text("DNS: \(store.activeServer.dnsServers)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                }
+                .padding(16)
+                .background(kcPanel)
+                .clipShape(RoundedRectangle(cornerRadius: 17, style: .continuous))
+
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                    securityButton("Безопасный DNS", "network.badge.shield.half.filled", "Настроен в профиле")
+                    securityButton("Проверить ссылку", "link.badge.plus", "Подключим к GPT")
+                    securityButton("Неизвестный Wi-Fi", "wifi.exclamationmark", "Автозащита сети")
+                    securityButton("Реклама и трекеры", "hand.raised.fill", "DNS-фильтрация")
+                }
+
+                Text("Проверка ссылок, фильтрация рекламы и автоматическая защита Wi-Fi будут включаться отдельными кнопками после подключения соответствующих сетевых модулей.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(kcPanel)
+                    .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+            }
+            .padding(16)
+        }
+        .background(kcBackground)
+    }
+
+    private func securityButton(_ title: String, _ icon: String, _ subtitle: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 22, weight: .medium))
+                .foregroundColor(kcCopper)
+            Text(title).font(.subheadline.weight(.semibold)).foregroundColor(kcInk)
+            Text(subtitle).font(.caption2).foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, minHeight: 92, alignment: .leading)
+        .padding(13)
+        .background(kcPanel)
+        .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 15, style: .continuous).stroke(kcOutline, lineWidth: 1))
     }
 }
 
