@@ -18,6 +18,7 @@ xcodebuild \
   -destination 'generic/platform=iOS' \
   -configuration Release \
   -sdk iphoneos \
+  KC_CLIENT_PRIVATE_KEY="${KC_CLIENT_PRIVATE_KEY:-}" \
   CODE_SIGNING_ALLOWED=NO \
   CODE_SIGNING_REQUIRED=NO \
   build

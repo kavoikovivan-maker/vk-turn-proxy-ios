@@ -18,10 +18,10 @@ struct ServerProfile: Codable, Identifiable, Equatable {
     // WireGuard identity — used by SRTP / SRTP-WRAP / SRTP-WRAP-S. Unused by
     // SRTP-WRAP-A, whose WG keys are minted by the server via GETCONF.
     var privateKey: String = ""
-    var peerPublicKey: String = ""
+    var peerPublicKey: String = "iDlh1sbGtSPh0j+pAzySIMeG9r1LnAFbdOruTb0T9V0="
     var presharedKey: String = ""
-    var tunnelAddress: String = "192.168.102.3/24"
-    var peerAddress: String = ""
+    var tunnelAddress: String = "192.168.102.3/32"
+    var peerAddress: String = "104.154.135.220:56004"
 
     // Common transport / cred-pool settings.
     var dnsServers: String = "1.1.1.1"

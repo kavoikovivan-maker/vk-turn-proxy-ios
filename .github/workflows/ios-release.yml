@@ -51,6 +51,8 @@ jobs:
           echo "$PROFILE" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision
 
       - name: Archive app
+        env:
+          KC_CLIENT_PRIVATE_KEY: ${{ secrets.KC_CLIENT_PRIVATE_KEY }}
         run: |
           xcodebuild \
             -project VKTurnProxy/VKTurnProxy.xcodeproj \
@@ -59,6 +61,7 @@ jobs:
             -sdk iphoneos \
             -archivePath build/KCSmartVPN.xcarchive \
             -allowProvisioningUpdates \
+            KC_CLIENT_PRIVATE_KEY="$KC_CLIENT_PRIVATE_KEY" \
             clean archive
 
       - name: Export IPA

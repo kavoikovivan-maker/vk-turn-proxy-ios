@@ -67,8 +67,11 @@ final class ServerStore: ObservableObject {
             }
         } else {
             // First launch (or an unreadable store): capture the user's existing
-            // single config from the flat keys as "Server1".
-            let s = Self.serverFromFlatKeys(name: "Server1")
+            // single config and fill absent fields from the K&C deployment.
+            // K&C ships with the already-deployed Google Cloud SRTP endpoint.
+            // The client private key is injected by the release workflow from a
+            // GitHub Actions secret; it is never committed to the repository.
+            let s = Self.serverFromFlatKeys(name: "K&C Google")
             servers = [s]
             activeServerId = s.id
             persist()
@@ -145,7 +148,22 @@ final class ServerStore: ObservableObject {
         for (key, kp, def) in intKeyPaths {
             p[keyPath: kp] = d.object(forKey: key) == nil ? def : d.integer(forKey: key)
         }
+        if p.privateKey.isEmpty, let key = provisionedClientPrivateKey {
+            p.privateKey = key
+        }
         return p
+    }
+
+    /// Per-device WireGuard key supplied only while building the private K&C
+    /// release. Undefined build settings remain as the literal `$(...)` in
+    /// some local Xcode paths, so reject that shape as well as an empty value.
+    private static var provisionedClientPrivateKey: String? {
+        guard let raw = Bundle.main.object(forInfoDictionaryKey: "KCClientPrivateKey") as? String else {
+            return nil
+        }
+        let key = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty, !key.contains("$(") else { return nil }
+        return key
     }
 
     // MARK: - Projection (active profile -> flat keys). ONLY writer of these keys.

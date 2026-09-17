@@ -2,7 +2,7 @@ name: K&C iOS CI
 
 on:
   push:
-    branches: [kc-smart-vpn]
+    branches: [kc-smart-vpn, kc-one-web]
   pull_request:
   workflow_dispatch:
 
