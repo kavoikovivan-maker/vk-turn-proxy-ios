@@ -21,6 +21,48 @@ jobs:
       - name: Install xcodegen
         run: brew install xcodegen
 
+      - name: Validate Apple developer signing readiness
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          PROVISIONING_PROFILE_BASE64: ${{ secrets.PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in APPLE_TEAM_ID APPLE_CERTIFICATE_P12 APPLE_CERTIFICATE_PASSWORD KEYCHAIN_PASSWORD PROVISIONING_PROFILE_BASE64; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Apple signing prerequisite not configured: $name"
+              missing=1
+            fi
+          done
+          [ "$missing" -eq 0 ] || exit 1
+          [[ "$APPLE_TEAM_ID" =~ ^[A-Z0-9]{10}$ ]] || { echo "::error::APPLE_TEAM_ID must be a 10-character Apple Team ID"; exit 1; }
+          echo "Apple signing secret names and team ID format verified (values not printed)."
+
+      - name: Set developer team from authorized account
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          team = os.environ["APPLE_TEAM_ID"]
+          project = Path("VKTurnProxy/project.yml")
+          data = project.read_text()
+          import re
+          data, count = re.subn(r"DEVELOPMENT_TEAM: [A-Z0-9]{10}", f"DEVELOPMENT_TEAM: {team}", data)
+          assert count == 1, "Expected exactly one DEVELOPMENT_TEAM entry"
+          project.write_text(data)
+          options = Path("VKTurnProxy/ExportOptions.plist")
+          data = options.read_text()
+          data, count = re.subn(r"(<key>teamID</key>\\s*<string>)[A-Z0-9]{10}(</string>)",
+                                lambda match: match.group(1) + team + match.group(2), data)
+          assert count == 1, "Expected exactly one export Team ID"
+          options.write_text(data)
+          PY
+
       - name: Build WireGuardBridge xcframework
         run: make -C WireGuardBridge xcframework
 
