@@ -57,7 +57,7 @@ jobs:
           project.write_text(data)
           options = Path("VKTurnProxy/ExportOptions.plist")
           data = options.read_text()
-          data, count = re.subn(r"(<key>teamID</key>\\s*<string>)[A-Z0-9]{10}(</string>)",
+          data, count = re.subn(r"(<key>teamID</key>\s*<string>)[A-Z0-9]{10}(</string>)",
                                 lambda match: match.group(1) + team + match.group(2), data)
           assert count == 1, "Expected exactly one export Team ID"
           options.write_text(data)
@@ -81,16 +81,31 @@ jobs:
           security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
           security default-keychain -s build.keychain
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
-          echo "$CERTIFICATE_P12" | base64 --decode > certificate.p12
+          printf "%s" "$CERTIFICATE_P12" | base64 --decode > certificate.p12
+          trap 'rm -f certificate.p12' EXIT
           security import certificate.p12 -k build.keychain -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" build.keychain
 
       - name: Install provisioning profile
         env:
           PROFILE: ${{ secrets.PROVISIONING_PROFILE_BASE64 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          echo "$PROFILE" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision
+          printf "%s" "$PROFILE" | base64 --decode > /tmp/kc-profile.mobileprovision
+          security cms -D -i /tmp/kc-profile.mobileprovision > /tmp/kc-profile.plist
+          python3 - <<'PY'
+          import os, plistlib
+          with open("/tmp/kc-profile.plist", "rb") as f:
+              profile = plistlib.load(f)
+          team = os.environ["APPLE_TEAM_ID"]
+          assert team in profile.get("TeamIdentifier", []), "Provisioning profile belongs to a different Apple team"
+          assert profile.get("Entitlements", {}).get("com.apple.developer.networking.networkextension"), "Provisioning profile lacks Network Extension entitlement"
+          print("Provisioning profile team and Network Extension entitlement verified")
+          PY
+          UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' /tmp/kc-profile.plist)
+          cp /tmp/kc-profile.mobileprovision "$HOME/Library/MobileDevice/Provisioning Profiles/$UUID.mobileprovision"
+          rm -f /tmp/kc-profile.mobileprovision /tmp/kc-profile.plist
 
       - name: Archive app
         env:
