@@ -828,7 +828,7 @@ private struct KCAssistantSheet: View {
                     .foregroundColor(kcCopper)
                 VStack(alignment: .leading, spacing: 1) {
                     Text("K&C GPT").font(.headline).foregroundColor(kcInk)
-                    Text(endpoint.isEmpty ? "Помощник устройства" : "GPT подключён")
+                    Text(endpoint.isEmpty ? "Локальный помощник · без ИИ-сервера" : (conversation.errorText == nil ? "GPT-сервер задан · соединение проверяется при запросе" : "GPT-сервер недоступен"))
                         .font(.caption2).foregroundColor(.secondary)
                 }
                 Spacer()
@@ -1137,8 +1137,8 @@ private struct KCAssistantSettingsPanel: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 VStack(alignment: .leading, spacing: 9) {
-                    Label(endpoint.isEmpty ? "Работает локальный помощник" : "GPT-сервер подключён",
-                          systemImage: endpoint.isEmpty ? "iphone" : "checkmark.circle.fill")
+                    Label(endpoint.isEmpty ? "Работает локальный помощник" : "Адрес GPT-сервера сохранён · проверка при отправке",
+                          systemImage: endpoint.isEmpty ? "iphone" : "network")
                         .font(.headline).foregroundColor(endpoint.isEmpty ? kcInk : kcCopper)
                     Text("Локальный режим объясняет VPN и качество сети. После подключения сервера здесь же заработают ответы на общие вопросы.")
                         .font(.caption).foregroundColor(.secondary)
