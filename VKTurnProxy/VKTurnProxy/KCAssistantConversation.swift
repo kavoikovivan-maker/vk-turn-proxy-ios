@@ -19,6 +19,25 @@ struct KCAssistantMessage: Identifiable, Codable, Equatable {
     }
 }
 
+enum KCAssistantMode: String, CaseIterable, Identifiable {
+    case quick, smart, team
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .quick: return "Быстрый"
+        case .smart: return "Умный"
+        case .team: return "Команда"
+        }
+    }
+    var responseWords: Int {
+        switch self {
+        case .quick: return 80
+        case .smart: return 350
+        case .team: return 550
+        }
+    }
+}
+
 @MainActor
 final class KCAssistantConversation: ObservableObject {
     @Published private(set) var messages: [KCAssistantMessage]
@@ -42,10 +61,15 @@ final class KCAssistantConversation: ObservableObject {
         }
     }
 
-    func send(_ rawText: String, endpoint: String, networkContext: String) async {
+    func send(_ rawText: String, endpoint: String, networkContext: String, mode: KCAssistantMode = .quick) async {
         let text = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !isSending else { return }
 
+        // A real multi-agent server must be integrated and verified before this mode can answer.
+        if mode == .team {
+            errorText = "Команда агентов пока не подключена к GPT-серверу."
+            return
+        }
         errorText = nil
         append(.init(role: .user, text: text))
         isSending = true
@@ -71,7 +95,8 @@ final class KCAssistantConversation: ObservableObject {
             request.httpBody = try JSONEncoder().encode(RequestPayload(
                 messages: messages.suffix(16).map { .init(role: $0.role.rawValue, content: $0.text) },
                 context: networkContext,
-                responseWords: 60
+                responseWords: mode.responseWords,
+                mode: mode.rawValue
             ))
 
             let (data, response) = try await URLSession.shared.data(for: request)
@@ -138,6 +163,7 @@ private struct RequestPayload: Encodable {
     let messages: [Message]
     let context: String
     let responseWords: Int
+    let mode: String
 }
 
 private struct DirectResponse: Decodable {
