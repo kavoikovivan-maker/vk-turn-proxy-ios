@@ -818,6 +818,11 @@ private struct KCAssistantSheet: View {
     @StateObject private var conversation = KCAssistantConversation()
     @AppStorage("kcAssistantEndpoint") private var endpoint = ""
     @State private var question = ""
+    @AppStorage("kcAssistantMode") private var modeRaw = KCAssistantMode.quick.rawValue
+
+    private var selectedMode: KCAssistantMode {
+        KCAssistantMode(rawValue: modeRaw) ?? .quick
+    }
     @FocusState private var inputFocused: Bool
 
     var body: some View {
@@ -841,6 +846,24 @@ private struct KCAssistantSheet: View {
             .padding(.horizontal, 16).padding(.vertical, 8)
             .background(kcPanel)
             .overlay(alignment: .bottom) { Rectangle().fill(kcOutline).frame(height: 1) }
+
+            Picker("Режим помощника", selection: $modeRaw) {
+                ForEach(KCAssistantMode.allCases) { mode in
+                    Text(mode.title).tag(mode.rawValue)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .accessibilityLabel("Режим ИИ")
+
+            if selectedMode == .team {
+                Text("Команда агентов: интерфейс подготовлен, серверная обработка ещё не подключена.")
+                    .font(.caption2)
+                    .foregroundColor(.orange)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 5)
+            }
 
             ScrollViewReader { proxy in
                 ScrollView(showsIndicators: false) {
@@ -895,7 +918,7 @@ private struct KCAssistantSheet: View {
                         .font(.system(size: 17, weight: .bold)).foregroundColor(.black)
                         .frame(width: 40, height: 40).background(kcCopper).clipShape(Circle())
                 }
-                .disabled(conversation.isSending || question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(conversation.isSending || selectedMode == .team || question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
             .padding(.horizontal, 14).padding(.vertical, 10)
             .background(kcPanel)
@@ -921,7 +944,8 @@ private struct KCAssistantSheet: View {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         question = ""
         inputFocused = false
-        Task { await conversation.send(text, endpoint: endpoint, networkContext: networkContext) }
+        guard selectedMode != .team else { return }
+        Task { await conversation.send(text, endpoint: endpoint, networkContext: networkContext, mode: selectedMode) }
     }
 
     private var networkContext: String {
