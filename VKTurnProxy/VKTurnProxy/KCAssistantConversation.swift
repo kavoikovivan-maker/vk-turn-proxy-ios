@@ -65,11 +65,6 @@ final class KCAssistantConversation: ObservableObject {
         let text = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !isSending else { return }
 
-        // A real multi-agent server must be integrated and verified before this mode can answer.
-        if mode == .team {
-            errorText = "Команда агентов пока не подключена к GPT-серверу."
-            return
-        }
         errorText = nil
         append(.init(role: .user, text: text))
         isSending = true
@@ -77,7 +72,12 @@ final class KCAssistantConversation: ObservableObject {
 
         let trimmedEndpoint = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedEndpoint.isEmpty else {
-            append(.init(role: .assistant, text: localReply(to: text, context: networkContext)))
+            if mode == .team {
+                errorText = "Для режима «Команда» нужен ИИ-сервер."
+                append(.init(role: .assistant, text: "Команда агентов готова в приложении, но для выполнения задачи подключите защищённый ИИ-сервер."))
+            } else {
+                append(.init(role: .assistant, text: localReply(to: text, context: networkContext)))
+            }
             return
         }
 
