@@ -858,9 +858,9 @@ private struct KCAssistantSheet: View {
             .accessibilityLabel("Режим ИИ")
 
             if selectedMode == .team {
-                Text("Команда агентов: интерфейс подготовлен, серверная обработка ещё не подключена.")
+                Text(endpoint.isEmpty ? "Команда агентов требует подключения ИИ-сервера." : "Команда агентов · углублённая обработка")
                     .font(.caption2)
-                    .foregroundColor(.orange)
+                    .foregroundColor(endpoint.isEmpty ? .orange : .secondary)
                     .padding(.horizontal, 16)
                     .padding(.bottom, 5)
             }
@@ -918,7 +918,7 @@ private struct KCAssistantSheet: View {
                         .font(.system(size: 17, weight: .bold)).foregroundColor(.black)
                         .frame(width: 40, height: 40).background(kcCopper).clipShape(Circle())
                 }
-                .disabled(conversation.isSending || selectedMode == .team || question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(conversation.isSending || question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
             .padding(.horizontal, 14).padding(.vertical, 10)
             .background(kcPanel)
@@ -944,7 +944,6 @@ private struct KCAssistantSheet: View {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         question = ""
         inputFocused = false
-        guard selectedMode != .team else { return }
         Task { await conversation.send(text, endpoint: endpoint, networkContext: networkContext, mode: selectedMode) }
     }
 
