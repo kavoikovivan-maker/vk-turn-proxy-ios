@@ -27,11 +27,13 @@ jobs:
           APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-          PROVISIONING_PROFILE_BASE64: ${{ secrets.PROVISIONING_PROFILE_BASE64 }}
+          APP_PROFILE_BASE64: ${{ secrets.APP_PROFILE_BASE64 }}
+          TUNNEL_PROFILE_BASE64: ${{ secrets.TUNNEL_PROFILE_BASE64 }}
+          WIDGET_PROFILE_BASE64: ${{ secrets.WIDGET_PROFILE_BASE64 }}
         run: |
           set -euo pipefail
           missing=0
-          for name in APPLE_TEAM_ID APPLE_CERTIFICATE_P12 APPLE_CERTIFICATE_PASSWORD KEYCHAIN_PASSWORD PROVISIONING_PROFILE_BASE64; do
+          for name in APPLE_TEAM_ID APPLE_CERTIFICATE_P12 APPLE_CERTIFICATE_PASSWORD KEYCHAIN_PASSWORD APP_PROFILE_BASE64 TUNNEL_PROFILE_BASE64 WIDGET_PROFILE_BASE64; do
             if [ -z "${!name:-}" ]; then
               echo "::error::Apple signing prerequisite not configured: $name"
               missing=1
@@ -86,26 +88,44 @@ jobs:
           security import certificate.p12 -k build.keychain -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" build.keychain
 
-      - name: Install provisioning profile
+      - name: Install and validate all three Apple provisioning profiles
         env:
-          PROFILE: ${{ secrets.PROVISIONING_PROFILE_BASE64 }}
+          APP_PROFILE_BASE64: ${{ secrets.APP_PROFILE_BASE64 }}
+          TUNNEL_PROFILE_BASE64: ${{ secrets.TUNNEL_PROFILE_BASE64 }}
+          WIDGET_PROFILE_BASE64: ${{ secrets.WIDGET_PROFILE_BASE64 }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          printf "%s" "$PROFILE" | base64 --decode > /tmp/kc-profile.mobileprovision
-          security cms -D -i /tmp/kc-profile.mobileprovision > /tmp/kc-profile.plist
+          set -euo pipefail
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          for kind in APP TUNNEL WIDGET; do
+            variable="${kind}_PROFILE_BASE64"
+            printf '%s' "${!variable}" | base64 --decode > "/tmp/kc-${kind}.mobileprovision"
+            security cms -D -i "/tmp/kc-${kind}.mobileprovision" > "/tmp/kc-${kind}.plist"
+          done
           python3 - <<'PY'
           import os, plistlib
-          with open("/tmp/kc-profile.plist", "rb") as f:
-              profile = plistlib.load(f)
+          from pathlib import Path
           team = os.environ["APPLE_TEAM_ID"]
-          assert team in profile.get("TeamIdentifier", []), "Provisioning profile belongs to a different Apple team"
-          assert profile.get("Entitlements", {}).get("com.apple.developer.networking.networkextension"), "Provisioning profile lacks Network Extension entitlement"
-          print("Provisioning profile team and Network Extension entitlement verified")
+          bundle_ids = {
+              "APP": "com.vkturnproxy.app",
+              "TUNNEL": "com.vkturnproxy.app.tunnel",
+              "WIDGET": "com.vkturnproxy.app.widget",
+          }
+          for kind, bundle_id in bundle_ids.items():
+              with Path(f"/tmp/kc-{kind}.plist").open("rb") as f:
+                  profile = plistlib.load(f)
+              ent = profile.get("Entitlements", {})
+              assert team in profile.get("TeamIdentifier", []), f"{kind}: wrong Apple team"
+              assert ent.get("application-identifier") == f"{team}.{bundle_id}", f"{kind}: profile bundle ID mismatch"
+              if kind in ("APP", "TUNNEL"):
+                  assert "packet-tunnel-provider" in ent.get("com.apple.developer.networking.networkextension", []), f"{kind}: missing Packet Tunnel entitlement"
+              print(f"{kind}: matching team, bundle ID and required entitlements")
           PY
-          UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' /tmp/kc-profile.plist)
-          cp /tmp/kc-profile.mobileprovision "$HOME/Library/MobileDevice/Provisioning Profiles/$UUID.mobileprovision"
-          rm -f /tmp/kc-profile.mobileprovision /tmp/kc-profile.plist
+          for kind in APP TUNNEL WIDGET; do
+            uuid=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "/tmp/kc-${kind}.plist")
+            cp "/tmp/kc-${kind}.mobileprovision" "$HOME/Library/MobileDevice/Provisioning Profiles/$uuid.mobileprovision"
+            rm -f "/tmp/kc-${kind}.mobileprovision" "/tmp/kc-${kind}.plist"
+          done
 
       - name: Archive app
         env:
