@@ -769,9 +769,42 @@ func turnURLsToAddresses(urls []string) []string {
 	return addresses
 }
 
+// ─── Provider-neutral credential source ───
+
+var externalTurnCredentials = struct {
+	mu      sync.RWMutex
+	enabled bool
+	user    string
+	pass    string
+	addrs   []string
+}{}
+
+func configureExternalTurnCredentials(user, pass string, addrs []string) {
+	externalTurnCredentials.mu.Lock()
+	defer externalTurnCredentials.mu.Unlock()
+	externalTurnCredentials.user = strings.TrimSpace(user)
+	externalTurnCredentials.pass = strings.TrimSpace(pass)
+	externalTurnCredentials.addrs = cloneStringSlice(addrs)
+	externalTurnCredentials.enabled = externalTurnCredentials.user != "" &&
+		externalTurnCredentials.pass != "" && len(externalTurnCredentials.addrs) > 0
+}
+
+func getExternalTurnCredentials() (string, string, []string, bool) {
+	externalTurnCredentials.mu.RLock()
+	defer externalTurnCredentials.mu.RUnlock()
+	if !externalTurnCredentials.enabled {
+		return "", "", nil, false
+	}
+	return externalTurnCredentials.user, externalTurnCredentials.pass,
+		cloneStringSlice(externalTurnCredentials.addrs), true
+}
+
 // ─── GetCreds returns TURN credentials for a given stream ───
 
 func GetCreds(ctx context.Context, link string, streamID int) (string, string, []string, error) {
+	if user, pass, addrs, ok := getExternalTurnCredentials(); ok {
+		return user, pass, addrs, nil
+	}
 	return getVkCredsCached(ctx, link, streamID)
 }
 
