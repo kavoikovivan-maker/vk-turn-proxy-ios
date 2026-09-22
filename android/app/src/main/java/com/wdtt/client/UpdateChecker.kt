@@ -72,6 +72,9 @@ object UpdateChecker {
      * Сравнение версий: >0 если [a] новее [b], 0 если равны, <0 если старше.
      * Снимает префикс "v", отбрасывает суффикс после "-" (например "v1.4.0-noads" -> 1.4.0).
      */
+    fun isRollingRelease(tag: String): Boolean =
+        tag.trim().equals("android-latest", ignoreCase = true)
+
     fun compareVersions(a: String, b: String): Int {
         val pa = parseVersion(a)
         val pb = parseVersion(b)
@@ -134,9 +137,13 @@ object UpdateChecker {
 
                 val info = ReleaseInfo(tag, releaseName, releaseBody, releaseUrl, assets)
                 val current = BuildConfig.VERSION_NAME
-                val hasUpdate = compareVersions(info.version, current) > 0
+                val hasUpdate = !isRollingRelease(info.version) &&
+                    compareVersions(info.version, current) > 0
                 Log.i(TAG, "latest=${info.version} current=$current update=$hasUpdate apks=${assets.size}")
-                if (onlyIfNewer && !hasUpdate) null else info
+                // android-latest is a rolling permanent link: automatic startup
+                // checks stay quiet, while the explicit "Проверить обновления"
+                // action (onlyIfNewer=false) always exposes the current APK.
+                if (onlyIfNewer && (isRollingRelease(info.version) || !hasUpdate)) null else info
             }
         } catch (e: Exception) {
             Log.w(TAG, "Update check failed: ${e.message}")
