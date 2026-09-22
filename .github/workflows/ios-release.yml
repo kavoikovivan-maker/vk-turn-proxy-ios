@@ -119,6 +119,8 @@ jobs:
               assert ent.get("application-identifier") == f"{team}.{bundle_id}", f"{kind}: profile bundle ID mismatch"
               if kind in ("APP", "TUNNEL"):
                   assert "packet-tunnel-provider" in ent.get("com.apple.developer.networking.networkextension", []), f"{kind}: missing Packet Tunnel entitlement"
+                  assert "group.com.vkturnproxy.app" in ent.get("com.apple.security.application-groups", []), f"{kind}: missing shared App Group entitlement"
+                  assert f"{team}.com.vkturnproxy.shared" in ent.get("keychain-access-groups", []), f"{kind}: missing shared Keychain entitlement"
               print(f"{kind}: matching team, bundle ID and required entitlements")
           PY
           for kind in APP TUNNEL WIDGET; do
