@@ -2794,6 +2794,10 @@ class TunnelManager: ObservableObject {
                 "username": s.username,
                 "password": s.password
             ]
+            if config.relayProvider.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() != "vk" {
+                dict["external_turn_only"] = true
+                dict["use_cookie_auth"] = false
+            }
         }
 
         guard let data = try? JSONSerialization.data(withJSONObject: dict),
