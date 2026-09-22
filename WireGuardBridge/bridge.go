@@ -204,6 +204,7 @@ type ProxyConfig struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
 	} `json:"seeded_turn,omitempty"`
+	ExternalTURNOnly bool `json:"external_turn_only,omitempty"`
 
 	// ForceLegacyCaptcha, when true, makes GetVKCreds skip the captcha-free VK
 	// Calls path so the legacy captchaNotRobot.* solver runs — for on-device
@@ -396,7 +397,13 @@ func wgStartVKBootstrap(proxyConfigJSON *C.char) C.int32_t {
 		NumConns:         pcfg.NumConns,
 		CredPoolCooldown: time.Duration(pcfg.CredPoolCooldownSeconds) * time.Second,
 		SeededTURN:       seededTURN,
-		CredCachePath:    credCachePath,
+		ExternalTURNOnly: pcfg.ExternalTURNOnly,
+		CredCachePath:    func() string {
+			if pcfg.ExternalTURNOnly {
+				return ""
+			}
+			return credCachePath
+		}(),
 	})
 
 	// Proxy.Start blocks until the first conn is ready or a fatal error
