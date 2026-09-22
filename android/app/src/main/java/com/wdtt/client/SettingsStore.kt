@@ -169,6 +169,7 @@ class SettingsStore(context: Context) {
         fun normalizeSocksPort(port: Int): Int = port.coerceIn(1, 65535)
 
         fun normalizeRelayProvider(provider: String?): String = when (provider?.trim()?.lowercase()) {
+            "auto" -> "auto"
             "max1" -> "max1"
             "max2" -> "max2"
             "yandex" -> "yandex"
