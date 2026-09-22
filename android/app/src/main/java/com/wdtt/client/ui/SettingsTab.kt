@@ -2890,7 +2890,6 @@ private fun PaletteCircleOption(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-@Composable
 private fun RelayProviderSettingsSection(
     provider: String,
     maxToken: String,
@@ -2979,6 +2978,8 @@ private fun RelayProviderSettingsSection(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 private fun GoDnsSettingsSection(
     goDnsPreset: String,
     goDnsCustomInput: String,
