@@ -545,6 +545,18 @@ fun SettingsTabContent(
     }
 
     fun requestVpnAndStart() {
+        if (!isValid) {
+            val reason = when {
+                !isPeerValid -> "Укажите сервер"
+                savedConnectionPassword.isBlank() -> "Укажите пароль подключения"
+                relayProvider == "max1" -> "Для Max 1 нужны MAX token и MAX ID"
+                relayProvider == "max2" -> "Для Max 2 нужны MAX token и MAX ID"
+                relayProvider == "yandex" -> "Укажите ссылку Yandex Telemost"
+                else -> "Укажите корректный VK-хеш"
+            }
+            Toast.makeText(context, reason, Toast.LENGTH_LONG).show()
+            return
+        }
         (context as? com.wdtt.client.MainActivity)?.requestNotificationPermissionIfNeeded()
         TunnelManager.beginConnecting()
         val proceed = {
