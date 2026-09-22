@@ -22,15 +22,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 
-// ═══ Inter Font Family ═══
-val InterFontFamily = FontFamily(
-    Font(R.font.inter_regular, FontWeight.Normal),
-    Font(R.font.inter_medium, FontWeight.Medium),
-    Font(R.font.inter_semibold, FontWeight.SemiBold),
-    Font(R.font.inter_bold, FontWeight.Bold),
-)
+// ═══ System sans-serif typography (keeps build independent of binary font assets) ═══
+val InterFontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif
 
-// ═══ Типография на Inter ═══
+// ═══ K&C typography ═══
 val WDTTTypography = Typography(
     displayLarge = TextStyle(fontFamily = InterFontFamily, fontWeight = FontWeight.Bold, fontSize = 57.sp, lineHeight = 64.sp),
     displayMedium = TextStyle(fontFamily = InterFontFamily, fontWeight = FontWeight.Bold, fontSize = 45.sp, lineHeight = 52.sp),
