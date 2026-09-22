@@ -172,6 +172,11 @@ extension TunnelConfig {
             credPoolCooldownSeconds: s.credPoolCooldownSeconds,
             turnServerOverride: turnOv?.host,
             turnPortOverride: turnOv?.port,
+            relayProvider: d.string(forKey: "kcRelayProvider") ?? "vk",
+            maxToken: d.string(forKey: "kcMaxToken") ?? "",
+            maxCalleeUID: d.string(forKey: "kcMaxCalleeUID") ?? "",
+            max2CalleeUID: d.string(forKey: "kcMax2CalleeUID") ?? "",
+            yandexTelemostLink: d.string(forKey: "kcYandexTelemostLink") ?? "",
             serverID: s.id,
             serverName: s.serverName
         )
@@ -494,6 +499,48 @@ class TunnelManager: ObservableObject {
             clearCredCacheIfAuthModeChanged(config: config)
 
             var seededTURN: (address: String, username: String, password: String)? = nil
+
+            let relayProvider = config.relayProvider.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if relayProvider != "vk" {
+                do {
+                    let creds: KCTurnCredentials
+                    switch relayProvider {
+                    case "max1":
+                        creds = try await KCMaxTurnProvider.fetch(
+                            token: config.maxToken,
+                            calleeUID: config.maxCalleeUID
+                        )
+                    case "max2":
+                        let uid = config.max2CalleeUID.isEmpty ? config.maxCalleeUID : config.max2CalleeUID
+                        creds = try await KCMaxTurnProvider.fetch(
+                            token: config.maxToken,
+                            calleeUID: uid
+                        )
+                    case "yandex":
+                        creds = try await KCYandexTurnProvider.fetch(
+                            telemostLink: config.yandexTelemostLink
+                        )
+                    default:
+                        throw KCRelayProviderError.invalidInput("Неизвестный маршрут K&C")
+                    }
+
+                    guard let relay = creds.firstUDPRelayAddress, !relay.isEmpty else {
+                        throw KCRelayProviderError.malformedResponse("TURN UDP адрес не получен")
+                    }
+                    seededTURN = (relay, creds.username, creds.credential)
+                    SharedLogger.shared.log("[AppDebug] K&C relay \(relayProvider): credentials acquired, relay=\(relay)")
+                    try await applyConfigurationAndStart(
+                        config: config,
+                        vkHostIPs: [:],
+                        seededTURN: seededTURN
+                    )
+                    return
+                } catch {
+                    SharedLogger.shared.log("[AppDebug] K&C relay \(relayProvider) failed: \(error.localizedDescription)")
+                    errorMessage = "Не удалось подключить \(relayProvider.uppercased()): \(error.localizedDescription)"
+                    return
+                }
+            }
 
             if config.useCookieAuth {
                 // ── VKAuth (non-anonymous cookie) pre-bootstrap ──────────────
@@ -3271,6 +3318,14 @@ struct TunnelConfig {
     var credPoolCooldownSeconds: Int = 150
     var turnServerOverride: String?
     var turnPortOverride: String?
+    // K&C relay family. VK remains the default/proven path. MAX/Yandex
+    // acquire short-lived TURN credentials in the main app and pass them
+    // through the existing seeded_turn bridge to PacketTunnel.
+    var relayProvider: String = "vk" // vk | max1 | max2 | yandex
+    var maxToken: String = ""
+    var maxCalleeUID: String = ""
+    var max2CalleeUID: String = ""
+    var yandexTelemostLink: String = ""
     /// WHICH profile this config was built from. Carried so the one place that
     /// starts a tunnel can record what the session is running (SessionServer.swift).
     /// A caller cannot forget to pass it, which is the point: the previous
