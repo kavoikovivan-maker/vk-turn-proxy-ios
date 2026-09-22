@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: kc-android-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -50,14 +54,12 @@ jobs:
         with:
           gradle-version: '9.1.0'
 
-      - name: Build native VPN client
+      - name: Build universal debug APK
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/27.2.12479018
         run: |
           chmod +x scripts/*.sh
-          export ANDROID_NDK_HOME="$ANDROID_SDK_ROOT/ndk/27.2.12479018"
-          ./scripts/build-native-libs.sh
-
-      - name: Build universal debug APK
-        run: gradle :app:assembleDebug --no-daemon
+          gradle :app:assembleDebug --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
