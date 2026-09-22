@@ -363,16 +363,46 @@ object TunnelManager {
                         activeProfileId = ""
                     }
                 }
-                val targetHash = if (activeHashIndex == 0) params.vkHashes else params.secondaryVkHash
-                
-                // Robust hash parsing: split by comma, newline, or whitespace
-                val hashList = targetHash
-                    .split(Regex("[,\\s\\n]+"))
-                    .map { it.trim() }
-                    .filter { it.isNotEmpty() }
-                    .take(SettingsStore.MAX_VK_HASHES)
+                val relayProvider = params.relayProvider.lowercase().trim()
+                val usesExternalTurn = relayProvider == "max1" ||
+                    relayProvider == "max2" || relayProvider == "yandex"
 
-                if (hashList.isEmpty()) {
+                val externalTurnCreds: KCTurnCredentials? = if (usesExternalTurn) {
+                    try {
+                        stats.value = "Получаю TURN: ${relayProvider.uppercase()}…"
+                        val result = when (relayProvider) {
+                            "yandex" -> KCYandexTurnProvider.fetch(params.yandexTelemostLink)
+                            "max1", "max2" -> KCMaxTurnProvider.fetch(
+                                params.maxToken,
+                                if (relayProvider == "max2" && params.max2CalleeUid.isNotBlank())
+                                    params.max2CalleeUid else params.maxCalleeUid
+                            )
+                            else -> error("Неизвестный relay provider")
+                        }
+                        result.getOrThrow()
+                    } catch (e: Exception) {
+                        val msg = e.message ?: e::class.java.simpleName
+                        updateLog("relay_provider_error", "[${relayProvider.uppercase()}] TURN: $msg", 99, true)
+                        abortStart(isSwitching, msg)
+                        return@launch
+                    }
+                } else null
+
+                val targetHash = if (activeHashIndex == 0) params.vkHashes else params.secondaryVkHash
+
+                // Robust hash parsing: split by comma, newline, or whitespace.
+                // MAX/Yandex use external TURN credentials and therefore do not need a VK hash.
+                val hashList = if (usesExternalTurn) {
+                    listOf("external")
+                } else {
+                    targetHash
+                        .split(Regex("[,\\s\\n]+"))
+                        .map { it.trim() }
+                        .filter { it.isNotEmpty() }
+                        .take(SettingsStore.MAX_VK_HASHES)
+                }
+
+                if (!usesExternalTurn && hashList.isEmpty()) {
                     updateLog("hash_error", "Ошибка: Хеш не указан", 99, true)
                     abortStart(isSwitching, "Хеш не указан")
                     return@launch
@@ -418,6 +448,17 @@ object TunnelManager {
                     "-n", totalWorkers.toString(),
                     "-listen", "127.0.0.1:${params.port}"
                 )
+
+                if (usesExternalTurn && externalTurnCreds != null) {
+                    cmd.add("-turn-provider")
+                    cmd.add("external")
+                    updateLog(
+                        "relay_provider",
+                        "[СЕТЬ] TURN provider: ${relayProvider.uppercase()} (${externalTurnCreds.udpAddresses().size} адресов)",
+                        1,
+                        false
+                    )
+                }
 
                 val androidId = android.provider.Settings.Secure.getString(context.contentResolver, android.provider.Settings.Secure.ANDROID_ID) ?: "unknown"
                 cmd.add("-device-id")
@@ -553,6 +594,11 @@ object TunnelManager {
                 // Set LD_LIBRARY_PATH
                 val env = pb.environment()
                 env["LD_LIBRARY_PATH"] = context.applicationInfo.nativeLibraryDir
+                if (usesExternalTurn && externalTurnCreds != null) {
+                    env["KC_TURN_USER"] = externalTurnCreds.username
+                    env["KC_TURN_PASS"] = externalTurnCreds.credential
+                    env["KC_TURN_ADDRS"] = externalTurnCreds.udpAddresses().joinToString(",")
+                }
 
                 process = pb.start()
                 processStartedAtMs = System.currentTimeMillis()
@@ -1993,6 +2039,14 @@ data class TunnelParams(
     val noDtls: Boolean = false,
     /** TURN-relay по TCP вместо UDP — обход UDP-душения на некоторых сетях (напр. Ростелеком). */
     val turnTcp: Boolean = false,
+    /** K&C relay family: vk | max1 | max2 | yandex. */
+    val relayProvider: String = "vk",
+    /** MAX Web token. Kept outside Go argv; TunnelManager passes short-lived TURN secrets via environment. */
+    val maxToken: String = "",
+    val maxCalleeUid: String = "",
+    val max2CalleeUid: String = "",
+    /** Public Yandex Telemost conference link or conference id. */
+    val yandexTelemostLink: String = "",
     val detailedLogs: Boolean = false
 ) {
     /** Go поднимает локальный SOCKS5 (userspace WG) вместо Android GoBackend — верно и для socks, и для rawtun. */
