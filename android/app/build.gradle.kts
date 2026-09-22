@@ -13,11 +13,11 @@ android {
     compileSdk = 35
     
     defaultConfig {
-        applicationId = "net.qwdtt.client.jewbsv"
+        applicationId = "com.kavoikov.kcvpn"
         minSdk = 28
         targetSdk = 35
-        versionCode = 52
-        versionName = "1.4.41"
+        versionCode = 100
+        versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -136,7 +136,7 @@ androidComponents {
                 ?.identifier
             val outputImpl = output as com.android.build.api.variant.impl.VariantOutputImpl
             outputImpl.outputFileName.set(
-                if (abi == null) "qWDTT-universal.apk" else "qWDTT-$abi.apk"
+                if (abi == null) "KC-VPN-universal.apk" else "KC-VPN-$abi.apk"
             )
         }
     }
