@@ -436,7 +436,11 @@ fun SettingsTabContent(
             val hashesList = hashes.split(Regex("[,\\s\\n]+")).filter { it.isNotBlank() && it.length >= 16 }.distinct()
             val hashesCount = hashesList.size.coerceAtLeast(1)
             val maxW = SettingsStore.maxAnonymousWorkers(hashesCount)
-            val finalWorkers = workersInput.toInt().coerceIn(9, maxW)
+            val finalWorkers = if (relayProvider == "vk") {
+                workersInput.toInt().coerceIn(9, maxW)
+            } else {
+                workersInput.toInt().coerceIn(1, 4)
+            }
             val host = PeerAddress.host(peerInput.trim())
             settingsStore.save(
                 host, hashes, "",
@@ -454,7 +458,11 @@ fun SettingsTabContent(
             val hashesList = combinedHashes.split(Regex("[,\\s\\n]+")).filter { it.isNotBlank() && it.length >= 16 }.distinct()
             val hashesCount = hashesList.size.coerceAtLeast(1)
             val maxW = SettingsStore.maxAnonymousWorkers(hashesCount)
-            val finalWorkers = workersInput.toInt().coerceIn(9, maxW)
+            val finalWorkers = if (relayProvider == "vk") {
+                workersInput.toInt().coerceIn(9, maxW)
+            } else {
+                workersInput.toInt().coerceIn(1, 4)
+            }
             val host = PeerAddress.host(peerInput.trim())
             settingsStore.save(
                 host, combinedHashes, "",
