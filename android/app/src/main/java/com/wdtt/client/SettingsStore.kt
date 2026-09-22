@@ -55,6 +55,12 @@ class SettingsStore(context: Context) {
         /** Соединяться с TURN-relay по TCP вместо UDP (обход UDP-душения на некоторых сетях). */
         private val TURN_TCP_ENABLED = booleanPreferencesKey("turn_tcp_enabled")
         private val SNI = stringPreferencesKey("sni")
+        private val RELAY_PROVIDER = stringPreferencesKey("relay_provider")
+        private val MAX_TOKEN = stringPreferencesKey("max_token")
+        private val MAX_TOKEN_ENCRYPTED = stringPreferencesKey("max_token_encrypted")
+        private val MAX_CALLEE_UID = stringPreferencesKey("max_callee_uid")
+        private val MAX2_CALLEE_UID = stringPreferencesKey("max2_callee_uid")
+        private val YANDEX_TELEMOST_LINK = stringPreferencesKey("yandex_telemost_link")
 
         private val DEPLOY_IP = stringPreferencesKey("deploy_ip")
         private val DEPLOY_LOGIN = stringPreferencesKey("deploy_login")
@@ -161,6 +167,13 @@ class SettingsStore(context: Context) {
         }
 
         fun normalizeSocksPort(port: Int): Int = port.coerceIn(1, 65535)
+
+        fun normalizeRelayProvider(provider: String?): String = when (provider?.trim()?.lowercase()) {
+            "max1" -> "max1"
+            "max2" -> "max2"
+            "yandex" -> "yandex"
+            else -> "vk"
+        }
 
         fun socksListenAddress(port: Int): String = "127.0.0.1:${normalizeSocksPort(port)}"
 
@@ -315,6 +328,11 @@ class SettingsStore(context: Context) {
     /** TURN-relay по TCP вместо UDP — обход UDP-душения на некоторых сетях (напр. Ростелеком). По умолчанию включено. */
     val turnTcpEnabled: Flow<Boolean> = dataStore.data.map { it[TURN_TCP_ENABLED] ?: true }
     val sni: Flow<String> = dataStore.data.map { it[SNI] ?: "" }
+    val relayProvider: Flow<String> = dataStore.data.map { normalizeRelayProvider(it[RELAY_PROVIDER]) }
+    val maxToken: Flow<String> = dataStore.data.map { readSecret(it, MAX_TOKEN_ENCRYPTED, MAX_TOKEN) }
+    val maxCalleeUid: Flow<String> = dataStore.data.map { it[MAX_CALLEE_UID] ?: "" }
+    val max2CalleeUid: Flow<String> = dataStore.data.map { it[MAX2_CALLEE_UID] ?: "" }
+    val yandexTelemostLink: Flow<String> = dataStore.data.map { it[YANDEX_TELEMOST_LINK] ?: "" }
 
     val deployIp: Flow<String> = dataStore.data.map { it[DEPLOY_IP] ?: "" }
     val deployLogin: Flow<String> = dataStore.data.map { it[DEPLOY_LOGIN] ?: "" }
@@ -511,6 +529,22 @@ class SettingsStore(context: Context) {
 
     suspend fun saveTurnTcpEnabled(enabled: Boolean) {
         dataStore.edit { prefs -> prefs[TURN_TCP_ENABLED] = enabled }
+    }
+
+    suspend fun saveRelaySettings(
+        provider: String,
+        maxToken: String,
+        maxCalleeUid: String,
+        max2CalleeUid: String,
+        yandexTelemostLink: String,
+    ) {
+        dataStore.edit { prefs ->
+            prefs[RELAY_PROVIDER] = normalizeRelayProvider(provider)
+            prefs.putSecret(MAX_TOKEN_ENCRYPTED, MAX_TOKEN, maxToken.trim())
+            prefs[MAX_CALLEE_UID] = maxCalleeUid.trim()
+            prefs[MAX2_CALLEE_UID] = max2CalleeUid.trim()
+            prefs[YANDEX_TELEMOST_LINK] = yandexTelemostLink.trim()
+        }
     }
 
     suspend fun saveGlobalVkHashes(hashes: String) {
