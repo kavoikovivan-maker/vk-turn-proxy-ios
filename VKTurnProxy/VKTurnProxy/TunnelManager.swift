@@ -1,6 +1,6 @@
 import Foundation
 import Network
-import NetworkExtension
+@preconcurrency import NetworkExtension
 import UIKit
 
 // MARK: - Tunnel Statistics
@@ -209,6 +209,13 @@ private final class DirectReplyOnce {
         used = true
         return true
     }
+}
+
+/// Mutable completion flag used only from the dedicated serial RTT queue.
+/// The queue provides synchronization; @unchecked Sendable documents that
+/// invariant for Swift's strict-concurrency checker.
+private final class RTTCompletionState: @unchecked Sendable {
+    var done = false
 }
 
 @MainActor
@@ -420,14 +427,14 @@ class TunnelManager: ObservableObject {
         }
 
         do {
-            let manager = try await getOrCreateManager()
+            _ = try await getOrCreateManager()
 
             // Build UAPI config string for WireGuard. Throws KeyError with a
             // user-readable message if any of the Base64 keys can't be decoded
             // — caught below and surfaced via `errorMessage`, so the user sees
             // "Private Key is not valid Base64…" instead of a cryptic
             // "hex string does not fit the slice" from wireguard-go.
-            let wgConfig = try buildUAPIConfig(config: config)
+            _ = try buildUAPIConfig(config: config)
 
             // Resolve VK API hostnames here, in the main-app process — the
             // extension can't do this reliably itself before
@@ -1682,7 +1689,9 @@ class TunnelManager: ObservableObject {
         // the first one.
         triggerCaptchaRefresh(reason: "initial")
         captchaAutoRefreshTimer = Timer.scheduledTimer(withTimeInterval: captchaRefreshInterval, repeats: true) { [weak self] _ in
-            self?.triggerCaptchaRefresh(reason: "timer")
+            Task { @MainActor [weak self] in
+                self?.triggerCaptchaRefresh(reason: "timer")
+            }
         }
     }
 
@@ -2552,22 +2561,26 @@ class TunnelManager: ObservableObject {
             using: .tcp
         )
         let queue = DispatchQueue(label: "rtt-ping")
-        var done = false
+        // NWConnection delivers state changes on `queue`, and the timeout is
+        // scheduled on that same serial queue. Keep completion state in a
+        // reference box rather than a captured mutable local so Swift 6 does
+        // not diagnose a cross-concurrency mutation.
+        let completion = RTTCompletionState()
         connection.stateUpdateHandler = { [weak self] state in
-            guard !done else { return }
+            guard !completion.done else { return }
             switch state {
             case .ready:
-                done = true
+                completion.done = true
                 let elapsed = (CFAbsoluteTimeGetCurrent() - start) * 1000
                 connection.cancel()
                 Task { @MainActor in
                     self?.live.internetRTTms = elapsed
                 }
             case .failed(_):
-                done = true
+                completion.done = true
                 connection.cancel()
             case .cancelled:
-                done = true
+                completion.done = true
             default:
                 break
             }
@@ -2576,8 +2589,8 @@ class TunnelManager: ObservableObject {
 
         // Timeout after 5 seconds
         queue.asyncAfter(deadline: .now() + 5) {
-            if !done {
-                done = true
+            if !completion.done {
+                completion.done = true
                 connection.cancel()
             }
         }
