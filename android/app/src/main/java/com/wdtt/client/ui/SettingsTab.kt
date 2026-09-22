@@ -475,6 +475,9 @@ fun SettingsTabContent(
 
     val isPeerValid = peerInput.isNotBlank()
     val isRelayValid = when (relayProvider) {
+        "auto" -> combinedHashes.isNotBlank() ||
+            (maxTokenInput.isNotBlank() && (maxCalleeUidInput.isNotBlank() || max2CalleeUidInput.isNotBlank())) ||
+            yandexTelemostLinkInput.isNotBlank()
         "max1" -> maxTokenInput.isNotBlank() && maxCalleeUidInput.isNotBlank()
         "max2" -> maxTokenInput.isNotBlank() &&
             (max2CalleeUidInput.isNotBlank() || maxCalleeUidInput.isNotBlank())
@@ -549,6 +552,7 @@ fun SettingsTabContent(
             val reason = when {
                 !isPeerValid -> "Укажите сервер"
                 savedConnectionPassword.isBlank() -> "Укажите пароль подключения"
+                relayProvider == "auto" -> "Для Auto настройте хотя бы VK, MAX или Yandex"
                 relayProvider == "max1" -> "Для Max 1 нужны MAX token и MAX ID"
                 relayProvider == "max2" -> "Для Max 2 нужны MAX token и MAX ID"
                 relayProvider == "yandex" -> "Укажите ссылку Yandex Telemost"
@@ -2916,7 +2920,7 @@ private fun RelayProviderSettingsSection(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            listOf("vk" to "VK", "max1" to "Max 1", "max2" to "Max 2", "yandex" to "Yandex")
+            listOf("auto" to "Auto", "vk" to "VK", "max1" to "Max 1", "max2" to "Max 2", "yandex" to "Yandex")
                 .forEach { (value, label) ->
                     FilterChip(
                         selected = provider == value,
@@ -2927,7 +2931,7 @@ private fun RelayProviderSettingsSection(
                     )
                 }
         }
-        AnimatedVisibility(visible = provider == "max1" || provider == "max2") {
+        AnimatedVisibility(visible = provider == "auto" || provider == "max1" || provider == "max2") {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = maxToken,
@@ -2955,7 +2959,7 @@ private fun RelayProviderSettingsSection(
                 )
             }
         }
-        AnimatedVisibility(visible = provider == "yandex") {
+        AnimatedVisibility(visible = provider == "auto" || provider == "yandex") {
             OutlinedTextField(
                 value = yandexLink,
                 onValueChange = onYandexLinkChange,
