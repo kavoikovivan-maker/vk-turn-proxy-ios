@@ -183,7 +183,7 @@ fun InfoTab() {
                             val current = com.wdtt.client.BuildConfig.VERSION_NAME
                             when {
                                 info == null -> Toast.makeText(context, "Не удалось проверить обновления", Toast.LENGTH_SHORT).show()
-                                UpdateChecker.compareVersions(info.version, current) > 0 -> updateInfo = info
+                                UpdateChecker.isRollingRelease(info.version) || UpdateChecker.compareVersions(info.version, current) > 0 -> updateInfo = info
                                 else -> Toast.makeText(context, "У вас установлена последняя версия", Toast.LENGTH_SHORT).show()
                             }
                         }
@@ -195,14 +195,14 @@ fun InfoTab() {
                     text = "Скопировать системный отчёт",
                     onClick = {
                         val reportText = """
-                            Приложение: qWDTT
+                            Приложение: K&C VPN
                             Версия: $currentVersion
                             Android API: ${Build.VERSION.SDK_INT}
                             Архитектура (ABI): ${Build.SUPPORTED_ABIS.firstOrNull() ?: "unknown"}
                             Устройство: ${Build.MANUFACTURER} ${Build.MODEL}
                         """.trimIndent()
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        clipboard.setPrimaryClip(ClipData.newPlainText("qWDTT Report", reportText))
+                        clipboard.setPrimaryClip(ClipData.newPlainText("K&C VPN Report", reportText))
                         Toast.makeText(context, "Отчёт о системе скопирован!", Toast.LENGTH_SHORT).show()
                     }
                 )
@@ -220,7 +220,7 @@ fun InfoTab() {
                 InfoActionButton(
                     icon = Icons.Default.Code,
                     text = "Исходный код на GitHub",
-                    onClick = { openLink("https://github.com/jewbsv/proxy-turn-vk-android") }
+                    onClick = { openLink("https://github.com/kavoikovivan-maker/vk-turn-proxy-ios") }
                 )
 
                 InfoActionButton(
@@ -241,7 +241,7 @@ fun InfoTab() {
                             val current = com.wdtt.client.BuildConfig.VERSION_NAME
                             when {
                                 info == null -> Toast.makeText(context, "Не удалось проверить обновления", Toast.LENGTH_SHORT).show()
-                                UpdateChecker.compareVersions(info.version, current) > 0 -> updateInfo = info
+                                UpdateChecker.isRollingRelease(info.version) || UpdateChecker.compareVersions(info.version, current) > 0 -> updateInfo = info
                                 else -> Toast.makeText(context, "У вас установлена последняя версия", Toast.LENGTH_SHORT).show()
                             }
                         }
