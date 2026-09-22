@@ -363,11 +363,42 @@ object TunnelManager {
                         activeProfileId = ""
                     }
                 }
-                val relayProvider = params.relayProvider.lowercase().trim()
+                val requestedRelayProvider = params.relayProvider.lowercase().trim()
+                var relayProvider = requestedRelayProvider
+                var externalTurnCreds: KCTurnCredentials? = null
+
+                if (requestedRelayProvider == "auto") {
+                    stats.value = "Smart Route: проверяю MAX / Yandex…"
+                    val auto = KCRelayAutoSelector.select(params)
+                    if (auto != null) {
+                        relayProvider = auto.provider
+                        externalTurnCreds = auto.credentials
+                        updateLog(
+                            "smart_route_selected",
+                            "[AUTO] ${auto.provider.uppercase()} выбран по preflight (${auto.discoveryMs} мс)",
+                            1,
+                            false
+                        )
+                    } else if (params.vkHashes.isNotBlank()) {
+                        relayProvider = "vk"
+                        updateLog(
+                            "smart_route_vk_fallback",
+                            "[AUTO] MAX/Yandex недоступны — использую VK",
+                            1,
+                            false
+                        )
+                    } else {
+                        val msg = "Auto: нет доступного настроенного маршрута"
+                        updateLog("relay_provider_error", msg, 99, true)
+                        abortStart(isSwitching, msg)
+                        return@launch
+                    }
+                }
+
                 val usesExternalTurn = relayProvider == "max1" ||
                     relayProvider == "max2" || relayProvider == "yandex"
 
-                val externalTurnCreds: KCTurnCredentials? = if (usesExternalTurn) {
+                if (usesExternalTurn && externalTurnCreds == null) {
                     try {
                         stats.value = "Получаю TURN: ${relayProvider.uppercase()}…"
                         val result = when (relayProvider) {
@@ -379,14 +410,14 @@ object TunnelManager {
                             )
                             else -> error("Неизвестный relay provider")
                         }
-                        result.getOrThrow()
+                        externalTurnCreds = result.getOrThrow()
                     } catch (e: Exception) {
                         val msg = e.message ?: e::class.java.simpleName
                         updateLog("relay_provider_error", "[${relayProvider.uppercase()}] TURN: $msg", 99, true)
                         abortStart(isSwitching, msg)
                         return@launch
                     }
-                } else null
+                }
 
                 val targetHash = if (activeHashIndex == 0) params.vkHashes else params.secondaryVkHash
 
