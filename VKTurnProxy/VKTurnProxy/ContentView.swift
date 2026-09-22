@@ -2068,12 +2068,16 @@ struct LogsView: View {
                     combined
             }
 
+            // Freeze the fully assembled String before crossing onto the main
+            // actor. Capturing the mutable local `combined` in MainActor.run
+            // becomes an error under Swift 6 strict concurrency.
+            let finalCombined = combined
             await MainActor.run {
-                fallbackText = combined
+                fallbackText = finalCombined
                 fallbackFetchedAt = Date()
                 fallbackInFlight = false
                 if usingOSLogFallback {
-                    logText = truncated(combined)
+                    logText = truncated(finalCombined)
                 }
             }
         }
