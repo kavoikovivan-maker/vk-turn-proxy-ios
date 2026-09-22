@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: kc-android-${{ github.ref }}
@@ -25,7 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -56,10 +56,25 @@ jobs:
           chmod +x scripts/*.sh
           gradle :app:assembleDebug --no-daemon
 
-      - name: Upload APK
+      - name: Stage universal APK
+        run: cp app/build/outputs/apk/debug/KC-VPN-universal.apk ../KC-VPN-Android.apk
+
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: kc-android-debug-${{ github.sha }}
-          path: android/app/build/outputs/apk/debug/*.apk
+          name: KC-VPN-Android-${{ github.sha }}
+          path: android/../KC-VPN-Android.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Publish permanent Android download
+        if: github.ref == 'refs/heads/kc-android-full'
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view android-latest >/dev/null 2>&1; then
+            gh release upload android-latest KC-VPN-Android.apk --clobber
+          else
+            gh release create android-latest KC-VPN-Android.apk               --target "${GITHUB_SHA}"               --title "K&C VPN Android"               --notes "Актуальная тестовая сборка K&C VPN для Android."
+          fi
