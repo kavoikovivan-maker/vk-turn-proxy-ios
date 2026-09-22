@@ -436,7 +436,7 @@ fun SettingsTabContent(
             val hashesList = hashes.split(Regex("[,\\s\\n]+")).filter { it.isNotBlank() && it.length >= 16 }.distinct()
             val hashesCount = hashesList.size.coerceAtLeast(1)
             val maxW = SettingsStore.maxAnonymousWorkers(hashesCount)
-            val finalWorkers = if (relayProvider == "vk") {
+            val finalWorkers = if (relayProvider == "vk" || relayProvider == "auto") {
                 workersInput.toInt().coerceIn(9, maxW)
             } else {
                 workersInput.toInt().coerceIn(1, 4)
@@ -458,7 +458,7 @@ fun SettingsTabContent(
             val hashesList = combinedHashes.split(Regex("[,\\s\\n]+")).filter { it.isNotBlank() && it.length >= 16 }.distinct()
             val hashesCount = hashesList.size.coerceAtLeast(1)
             val maxW = SettingsStore.maxAnonymousWorkers(hashesCount)
-            val finalWorkers = if (relayProvider == "vk") {
+            val finalWorkers = if (relayProvider == "vk" || relayProvider == "auto") {
                 workersInput.toInt().coerceIn(9, maxW)
             } else {
                 workersInput.toInt().coerceIn(1, 4)
@@ -493,7 +493,7 @@ fun SettingsTabContent(
         val hashesList = combinedHashes.split(Regex("[,\\s\\n]+")).filter { it.isNotBlank() && it.length >= 16 }.distinct()
         val hashesCount = hashesList.size.coerceAtLeast(1)
         val maxW = SettingsStore.maxAnonymousWorkers(hashesCount)
-        val finalWorkers = if (relayProvider == "vk") {
+        val finalWorkers = if (relayProvider == "vk" || relayProvider == "auto") {
             workersInput.toInt().coerceIn(9, maxW)
         } else {
             workersInput.toInt().coerceIn(1, 4)
