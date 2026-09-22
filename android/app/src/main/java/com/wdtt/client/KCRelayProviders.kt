@@ -366,3 +366,56 @@ object KCMaxTurnProvider {
         }
     }
 }
+
+
+data class KCAutoRelaySelection(
+    val provider: String,
+    val credentials: KCTurnCredentials,
+    val discoveryMs: Long
+)
+
+/**
+ * Auto preflight for configured non-VK relay providers.
+ *
+ * It measures the end-to-end credential discovery latency for every configured
+ * MAX/Yandex route and returns the quickest successful route. VK stays the
+ * fallback in TunnelManager because VK credential discovery is performed by the
+ * Go core and therefore cannot be safely probed here without starting a second
+ * VK session/captcha flow.
+ */
+object KCRelayAutoSelector {
+    suspend fun select(params: TunnelParams): KCAutoRelaySelection? {
+        val attempts = mutableListOf<KCAutoRelaySelection>()
+
+        suspend fun tryProvider(name: String, block: suspend () -> Result<KCTurnCredentials>) {
+            val started = android.os.SystemClock.elapsedRealtime()
+            val result = runCatching { block().getOrThrow() }
+            val elapsed = android.os.SystemClock.elapsedRealtime() - started
+            result.getOrNull()?.let { creds ->
+                if (creds.udpAddresses().isNotEmpty()) {
+                    attempts += KCAutoRelaySelection(name, creds, elapsed)
+                }
+            }
+        }
+
+        if (params.maxToken.isNotBlank() && params.maxCalleeUid.isNotBlank()) {
+            tryProvider("max1") {
+                KCMaxTurnProvider.fetch(params.maxToken, params.maxCalleeUid)
+            }
+        }
+        if (params.maxToken.isNotBlank() &&
+            (params.max2CalleeUid.isNotBlank() || params.maxCalleeUid.isNotBlank())) {
+            val uid = params.max2CalleeUid.ifBlank { params.maxCalleeUid }
+            tryProvider("max2") {
+                KCMaxTurnProvider.fetch(params.maxToken, uid)
+            }
+        }
+        if (params.yandexTelemostLink.isNotBlank()) {
+            tryProvider("yandex") {
+                KCYandexTurnProvider.fetch(params.yandexTelemostLink)
+            }
+        }
+
+        return attempts.minByOrNull { it.discoveryMs }
+    }
+}
