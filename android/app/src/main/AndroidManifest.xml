@@ -15,9 +15,9 @@
     <application
         android:name=".WdttApplication"
         android:allowBackup="false"
-        android:icon="@mipmap/ic_launcher"
-        android:label="qWDTT"
-        android:roundIcon="@mipmap/ic_launcher_round"
+        android:icon="@drawable/ic_kc_launcher"
+        android:label="K&C VPN"
+        android:roundIcon="@drawable/ic_kc_launcher"
         android:supportsRtl="true"
         android:usesCleartextTraffic="true"
         android:extractNativeLibs="true"
@@ -133,7 +133,7 @@
 
         <receiver
             android:name=".TunnelWidgetProvider"
-            android:label="qWDTT Туннель"
+            android:label="K&C VPN"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
@@ -146,8 +146,8 @@
 
         <service
             android:name=".QuickToggleTileService"
-            android:label="qWDTT"
-            android:icon="@drawable/ic_tile_custom"
+            android:label="K&C VPN"
+            android:icon="@drawable/ic_kc_launcher"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
             android:exported="true">
             <intent-filter>
