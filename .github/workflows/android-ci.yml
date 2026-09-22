@@ -48,13 +48,20 @@ jobs:
         with:
           gradle-version: '9.1.0'
 
-      - name: Build universal debug APK
+      - name: Test and build universal debug APK
         env:
           ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/27.2.12479018
         run: |
           unset ANDROID_SDK_ROOT
           chmod +x scripts/*.sh
-          gradle :app:assembleDebug --no-daemon
+          gradle :app:testDebugUnitTest :app:assembleDebug --no-daemon
+
+      - name: Verify universal APK
+        run: |
+          APK="app/build/outputs/apk/debug/KC-VPN-universal.apk"
+          test -s "$APK"
+          unzip -t "$APK" >/dev/null
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
 
       - name: Stage universal APK
         run: cp app/build/outputs/apk/debug/KC-VPN-universal.apk ../KC-VPN-Android.apk
