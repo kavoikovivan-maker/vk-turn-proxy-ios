@@ -164,6 +164,10 @@ func main() {
 	port := flag.String("port", "", "переопределить порт TURN")
 	listen := flag.String("listen", "127.0.0.1:9000", "локальный адрес")
 	vkHash := flag.String("vk", "", "хеши VK-звонков (через запятую)")
+	turnProvider := flag.String("turn-provider", "vk", "источник TURN credentials: vk|external")
+	turnUser := flag.String("turn-user", "", "TURN username для external provider")
+	turnPass := flag.String("turn-pass", "", "TURN password для external provider")
+	turnAddrs := flag.String("turn-addrs", "", "TURN addresses через запятую для external provider")
 	peerAddr := flag.String("peer", "", "адрес:порт VPS сервера")
 	numW := flag.Int("n", 24, "количество воркеров (кратно 12)")
 	pingOnly := flag.Bool("ping-only", false, "запустить только замер задержки и выйти")
@@ -184,6 +188,28 @@ func main() {
 	tunFdSock := flag.String("tun-fd-sock", "", "unix-сокет для получения TUN fd от Android (только -mode rawtun)")
 
 	flag.Parse()
+
+	activeTurnProvider := strings.ToLower(strings.TrimSpace(*turnProvider))
+	if activeTurnProvider != "external" {
+		activeTurnProvider = "vk"
+	}
+	if activeTurnProvider == "external" {
+		var addrs []string
+		for _, raw := range strings.Split(*turnAddrs, ",") {
+			raw = strings.TrimSpace(raw)
+			if raw != "" {
+				addrs = append(addrs, raw)
+			}
+		}
+		configureExternalTurnCredentials(*turnUser, *turnPass, addrs)
+		if _, _, _, ok := getExternalTurnCredentials(); !ok {
+			log.Fatal("[КЛИЕНТ] Для external TURN нужны -turn-user, -turn-pass и -turn-addrs")
+		}
+		log.Printf("[КЛИЕНТ] TURN provider: external (%d адресов)", len(addrs))
+	} else {
+		log.Printf("[КЛИЕНТ] TURN provider: VK")
+	}
+
 	activeConnMode := strings.ToLower(strings.TrimSpace(*connMode))
 	if activeConnMode != "socks" && activeConnMode != "rawtun" {
 		activeConnMode = "vpn"
@@ -198,6 +224,9 @@ func main() {
 	}
 
 	hashes := ParseHashes(*vkHash)
+	if activeTurnProvider == "external" && len(hashes) == 0 {
+		hashes = []string{"external"}
+	}
 	if *checkHashes {
 		if len(hashes) == 0 {
 			log.Fatal("[CHECK] Нужен -vk со списком хешей")
@@ -211,13 +240,18 @@ func main() {
 		return
 	}
 
-	log.Printf("[КЛИЕНТ] VK auth mode: %s", activeVkAuthMode)
-	if activeVkAuthMode == "anonymous" {
+	if activeTurnProvider == "vk" {
+		log.Printf("[КЛИЕНТ] VK auth mode: %s", activeVkAuthMode)
+	}
+	if activeTurnProvider == "vk" && activeVkAuthMode == "anonymous" {
 		log.Printf("[КЛИЕНТ] VK anon path: %s", activeVkAnonPath)
 	}
 
-	if *peerAddr == "" || *vkHash == "" {
-		log.Fatal("[КЛИЕНТ] Нужны -peer и -vk")
+	if *peerAddr == "" {
+		log.Fatal("[КЛИЕНТ] Нужен -peer")
+	}
+	if activeTurnProvider == "vk" && *vkHash == "" {
+		log.Fatal("[КЛИЕНТ] Для VK нужен -vk")
 	}
 
 	peer, err := net.ResolveUDPAddr("udp", *peerAddr)
