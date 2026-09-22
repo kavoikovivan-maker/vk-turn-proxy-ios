@@ -30,10 +30,10 @@ jobs:
             android/go.sum
             android/go_client/go.sum
 
-      - uses: android-actions/setup-android@v3
-
       - name: Install Android SDK and NDK
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
 
       - name: Install Gradle
         uses: gradle/actions/setup-gradle@v4
