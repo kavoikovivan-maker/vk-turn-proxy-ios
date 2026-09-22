@@ -33,8 +33,8 @@ import java.util.concurrent.TimeUnit
  */
 object UpdateChecker {
 
-    private const val REPO = "jewbsv/proxy-turn-vk-android"
-    private const val RELEASES_URL = "https://api.github.com/repos/$REPO/releases/latest"
+    private const val REPO = "kavoikovivan-maker/vk-turn-proxy-ios"
+    private const val RELEASES_URL = "https://api.github.com/repos/$REPO/releases/tags/android-latest"
     private const val TAG = "UpdateChecker"
     private const val UPDATES_DIR = "updates"
 
@@ -57,6 +57,7 @@ object UpdateChecker {
             abi?.let {
                 assets.firstOrNull { (name, _) -> name == "qWDTT-$it.apk" }?.let { a -> return a }
             }
+            assets.firstOrNull { (name, _) -> name == "KC-VPN-Android.apk" }?.let { a -> return a }
             assets.firstOrNull { (name, _) -> name == "qWDTT-universal.apk" }?.let { a -> return a }
             abi?.let {
                 assets.firstOrNull { (name, _) ->
@@ -105,7 +106,7 @@ object UpdateChecker {
             val request = Request.Builder()
                 .url(RELEASES_URL)
                 .header("Accept", "application/vnd.github+json")
-                .header("User-Agent", "qWDTT-Android")
+                .header("User-Agent", "KC-VPN-Android")
                 .build()
             httpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
@@ -196,7 +197,7 @@ object UpdateChecker {
         runCatching { if (target.exists()) target.delete() }
 
         val request = DownloadManager.Request(Uri.parse(assetUrl)).apply {
-            setTitle("qWDTT ${info.version}")
+            setTitle("K&C VPN ${info.version}")
             setDescription("Скачивание обновления…")
             setMimeType("application/vnd.android.package-archive")
             setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
