@@ -194,16 +194,22 @@ func main() {
 		activeTurnProvider = "vk"
 	}
 	if activeTurnProvider == "external" {
+		user := strings.TrimSpace(*turnUser)
+		pass := strings.TrimSpace(*turnPass)
+		addrCSV := strings.TrimSpace(*turnAddrs)
+		if user == "" { user = strings.TrimSpace(os.Getenv("KC_TURN_USER")) }
+		if pass == "" { pass = strings.TrimSpace(os.Getenv("KC_TURN_PASS")) }
+		if addrCSV == "" { addrCSV = strings.TrimSpace(os.Getenv("KC_TURN_ADDRS")) }
 		var addrs []string
-		for _, raw := range strings.Split(*turnAddrs, ",") {
+		for _, raw := range strings.Split(addrCSV, ",") {
 			raw = strings.TrimSpace(raw)
 			if raw != "" {
 				addrs = append(addrs, raw)
 			}
 		}
-		configureExternalTurnCredentials(*turnUser, *turnPass, addrs)
+		configureExternalTurnCredentials(user, pass, addrs)
 		if _, _, _, ok := getExternalTurnCredentials(); !ok {
-			log.Fatal("[КЛИЕНТ] Для external TURN нужны -turn-user, -turn-pass и -turn-addrs")
+			log.Fatal("[КЛИЕНТ] Для external TURN нужны username, password и addresses")
 		}
 		log.Printf("[КЛИЕНТ] TURN provider: external (%d адресов)", len(addrs))
 	} else {
