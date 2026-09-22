@@ -31,7 +31,7 @@ OUT_DIR="$ROOT_DIR/app/src/main/jniLibs/$ABI"
 mkdir -p "$OUT_DIR"
 (
   cd "$GO_DIR"
-  go mod download
+  go mod tidy
   GOOS=android GOARCH="$GOARCH" CGO_ENABLED=1 CC="$CC"     go build -trimpath -ldflags=-checklinkname=0 -o "$OUT_DIR/libclient.so" .
 )
 echo "Built $OUT_DIR/libclient.so"
