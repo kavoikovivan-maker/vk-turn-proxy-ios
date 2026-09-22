@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import kotlinx.coroutines.launch
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
@@ -37,6 +38,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material.icons.outlined.Cloud
+import androidx.compose.material.icons.outlined.Chat
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.FolderOpen
@@ -71,6 +73,7 @@ import com.wdtt.client.ui.SettingsTab
 import com.wdtt.client.ui.ServersTab
 import com.wdtt.client.ui.ExceptionsTab
 import com.wdtt.client.ui.InfoTab
+import com.wdtt.client.ui.KCAssistantTab
 import kotlinx.coroutines.flow.first
 import kotlin.math.PI
 import kotlin.math.abs
@@ -264,6 +267,7 @@ private val navItems = listOf(
     NavItem(3, "Обход", Icons.Filled.FilterList, Icons.Outlined.FilterList),
     NavItem(4, "Логи", Icons.Filled.Terminal, Icons.Outlined.Terminal),
     NavItem(5, "Инфо", Icons.Filled.Info, Icons.Outlined.Info),
+    NavItem(6, "GPT", Icons.Filled.Chat, Icons.Outlined.Chat),
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -512,6 +516,7 @@ fun MainScreen(
                         3 -> ExceptionsTab()
                         4 -> LogsTab()
                         5 -> InfoTab()
+                        6 -> KCAssistantTab()
                     }
                 }
 
