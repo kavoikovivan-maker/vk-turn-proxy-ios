@@ -720,7 +720,7 @@ private struct KCRouteSheet: View {
     @ObservedObject var tunnel: TunnelManager
     @ObservedObject private var store = ServerStore.shared
     @AppStorage("kcRelayProvider") private var relayProvider = KCRelayProvider.vk.rawValue
-    @AppStorage("kcMaxToken") private var maxToken = ""
+    @State private var maxToken = KCRelaySecretStore.loadMaxToken()
     @AppStorage("kcMaxCalleeUID") private var maxCalleeUID = ""
     @AppStorage("kcMax2CalleeUID") private var max2CalleeUID = ""
     @AppStorage("kcYandexTelemostLink") private var yandexTelemostLink = ""
@@ -749,6 +749,9 @@ private struct KCRouteSheet: View {
                     if selectedRelay == .max1 || selectedRelay == .max2 {
                         SecureField("MAX token", text: $maxToken)
                             .textFieldStyle(.roundedBorder)
+                            .onChange(of: maxToken) { value in
+                                _ = KCRelaySecretStore.saveMaxToken(value)
+                            }
                         TextField("MAX ID · профиль 1", text: $maxCalleeUID)
                             .textFieldStyle(.roundedBorder)
                         TextField("MAX ID · профиль 2", text: $max2CalleeUID)
