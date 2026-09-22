@@ -173,7 +173,10 @@ extension TunnelConfig {
             turnServerOverride: turnOv?.host,
             turnPortOverride: turnOv?.port,
             relayProvider: d.string(forKey: "kcRelayProvider") ?? "vk",
-            maxToken: d.string(forKey: "kcMaxToken") ?? "",
+            maxToken: {
+                KCRelaySecretStore.migrateLegacyDefaultsIfNeeded()
+                return KCRelaySecretStore.loadMaxToken()
+            }(),
             maxCalleeUID: d.string(forKey: "kcMaxCalleeUID") ?? "",
             max2CalleeUID: d.string(forKey: "kcMax2CalleeUID") ?? "",
             yandexTelemostLink: d.string(forKey: "kcYandexTelemostLink") ?? "",
