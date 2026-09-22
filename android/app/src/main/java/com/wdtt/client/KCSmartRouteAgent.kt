@@ -2,6 +2,8 @@ package com.wdtt.client
 
 import kotlin.math.max
 
+enum class KCRouteMode { AUTO, MANUAL }
+
 enum class KCRelayProvider(val title: String) {
     VK("VK"),
     MAX1("Max 1"),
@@ -47,7 +49,25 @@ class KCSmartRouteAgent(
     private var lastCandidateId: String? = null
     private var lastSwitchAt = 0L
 
-    fun decide(current: KCRouteSample?, samples: List<KCRouteSample>, nowMs: Long = System.currentTimeMillis()): KCRouteDecision {
+    fun decide(
+        current: KCRouteSample?,
+        samples: List<KCRouteSample>,
+        mode: KCRouteMode = KCRouteMode.AUTO,
+        manualRouteId: String? = null,
+        nowMs: Long = System.currentTimeMillis()
+    ): KCRouteDecision {
+        if (mode == KCRouteMode.MANUAL) {
+            val requested = samples.firstOrNull { it.id == manualRouteId }
+            if (requested == null || !requested.available) {
+                return KCRouteDecision(current, "Выбранный вручную маршрут недоступен", false)
+            }
+            return KCRouteDecision(
+                requested,
+                "Ручной выбор: " + requested.provider.title,
+                current?.id != requested.id
+            )
+        }
+
         val viable = samples
             .filter { it.available }
             .filter { nowMs - it.measuredAtMs <= 30_000L }
