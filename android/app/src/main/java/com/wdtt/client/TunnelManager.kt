@@ -414,11 +414,12 @@ object TunnelManager {
                 }
 
                 val hashCount = hashList.size.coerceIn(1, SettingsStore.MAX_VK_HASHES)
-                val accountMode = !params.vkAuthMode.equals("anonymous", ignoreCase = true)
-                val maxWorkers = if (accountMode) {
-                    SettingsStore.VK_ACCOUNT_MAX_WORKERS
-                } else {
-                    SettingsStore.maxAnonymousWorkers(hashCount)
+                val accountMode = !usesExternalTurn &&
+                    !params.vkAuthMode.equals("anonymous", ignoreCase = true)
+                val maxWorkers = when {
+                    usesExternalTurn -> 4
+                    accountMode -> SettingsStore.VK_ACCOUNT_MAX_WORKERS
+                    else -> SettingsStore.maxAnonymousWorkers(hashCount)
                 }
                 val totalWorkers = params.workersPerHash.coerceIn(1, maxWorkers)
                 
@@ -467,21 +468,22 @@ object TunnelManager {
                 cmd.add("-password")
                 cmd.add(params.connectionPassword)
 
-                // Captcha mode: wv или rjs
-                cmd.add("-captcha-mode")
-                cmd.add(params.captchaMode)
+                if (!usesExternalTurn) {
+                    // VK-only bootstrap/auth settings.
+                    cmd.add("-captcha-mode")
+                    cmd.add(params.captchaMode)
+                    cmd.add("-vk-auth")
+                    cmd.add(if (params.vkAuthMode.equals("anonymous", ignoreCase = true)) "anonymous" else "account")
 
-                cmd.add("-vk-auth")
-                cmd.add(if (params.vkAuthMode.equals("anonymous", ignoreCase = true)) "anonymous" else "account")
+                    if (params.vkAuthMode.equals("anonymous", ignoreCase = true)) {
+                        cmd.add("-vk-anon-path")
+                        cmd.add(params.vkAnonPath)
+                        updateLog("vk_anon_path", "[КЛИЕНТ] Режим VK: ${params.vkAnonPath}", 1, false)
+                    }
 
-                if (params.vkAuthMode.equals("anonymous", ignoreCase = true)) {
-                    cmd.add("-vk-anon-path")
-                    cmd.add(params.vkAnonPath)
-                    updateLog("vk_anon_path", "[КЛИЕНТ] Режим VK: ${params.vkAnonPath}", 1, false)
+                    cmd.add("-go-dns")
+                    cmd.add(params.goDnsArg)
                 }
-
-                cmd.add("-go-dns")
-                cmd.add(params.goDnsArg)
 
                 cmd.add("-obfs")
                 cmd.add(SettingsStore.normalizeObfsMode(params.obfsMode))
@@ -530,30 +532,41 @@ object TunnelManager {
                     }
                 }
 
-                setConnectionPipelineCurrent(ConnectionStep.DNS)
-                val dnsProbe = GoDnsProbe.check(params.goDnsArg)
-                if (!dnsProbe.reachable) {
-                    updateLog(
-                        "go_dns_precheck_fail",
-                        "[СЕТЬ] DNS недоступен: ${dnsProbe.statusText}",
-                        50,
-                        true
-                    )
-                    failConnectionPipeline(ConnectionStep.DNS)
-                    updateLog(
-                        "go_dns_tip",
-                        "[СЕТЬ] Смените DNS в ⚙️ → Сеть (Яндекс / Cloudflare / Google / DoH / Свой)",
-                        50,
-                        true
-                    )
-                    abortStart(isSwitching, "DNS недоступен")
-                    return@launch
+                if (!usesExternalTurn) {
+                    setConnectionPipelineCurrent(ConnectionStep.DNS)
+                    val dnsProbe = GoDnsProbe.check(params.goDnsArg)
+                    if (!dnsProbe.reachable) {
+                        updateLog(
+                            "go_dns_precheck_fail",
+                            "[СЕТЬ] DNS недоступен: ${dnsProbe.statusText}",
+                            50,
+                            true
+                        )
+                        failConnectionPipeline(ConnectionStep.DNS)
+                        updateLog(
+                            "go_dns_tip",
+                            "[СЕТЬ] Смените DNS в ⚙️ → Сеть (Яндекс / Cloudflare / Google / DoH / Свой)",
+                            50,
+                            true
+                        )
+                        abortStart(isSwitching, "DNS недоступен")
+                        return@launch
+                    } else {
+                        updateLog("go_dns_precheck_ok", "[СЕТЬ] DNS доступен: ${dnsProbe.statusText}", 1, false)
+                        advanceConnectionPipeline(ConnectionStep.DNS, ConnectionStep.VK)
+                    }
                 } else {
-                    updateLog("go_dns_precheck_ok", "[СЕТЬ] DNS доступен: ${dnsProbe.statusText}", 1, false)
-                    advanceConnectionPipeline(ConnectionStep.DNS, ConnectionStep.VK)
+                    updateLog(
+                        "external_turn_ready",
+                        "[СЕТЬ] ${relayProvider.uppercase()} TURN-параметры получены",
+                        1,
+                        false
+                    )
+                    advanceConnectionPipeline(ConnectionStep.DNS, ConnectionStep.WRAP)
                 }
 
-                if (!params.vkAuthMode.equals("anonymous", ignoreCase = true)) {
+                if (!usesExternalTurn &&
+                    !params.vkAuthMode.equals("anonymous", ignoreCase = true)) {
                     try {
                         stats.value = "VK: вход в звонок…"
                         updateLog("vk_auth_start", "[VK Auth] Вход в звонок…", 5, false)
