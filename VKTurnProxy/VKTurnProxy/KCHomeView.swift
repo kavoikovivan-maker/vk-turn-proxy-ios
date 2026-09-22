@@ -719,11 +719,65 @@ private struct KCFullSectionPage<Content: View>: View {
 private struct KCRouteSheet: View {
     @ObservedObject var tunnel: TunnelManager
     @ObservedObject private var store = ServerStore.shared
+    @AppStorage("kcRelayProvider") private var relayProvider = KCRelayProvider.vk.rawValue
+    @AppStorage("kcMaxToken") private var maxToken = ""
+    @AppStorage("kcMaxCalleeUID") private var maxCalleeUID = ""
+    @AppStorage("kcMax2CalleeUID") private var max2CalleeUID = ""
+    @AppStorage("kcYandexTelemostLink") private var yandexTelemostLink = ""
+
+    private var selectedRelay: KCRelayProvider {
+        KCRelayProvider(rawValue: relayProvider) ?? .vk
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 14) {
                 SmartRouteModePanel().padding(.horizontal, -16)
                 TrafficRouteModePanel(tunnel: tunnel).padding(.horizontal, -16)
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Источник маршрута").font(.headline)
+                    Picker("Источник TURN", selection: $relayProvider) {
+                        Text("VK").tag(KCRelayProvider.vk.rawValue)
+                        Text("Max 1").tag(KCRelayProvider.max1.rawValue)
+                        Text("Max 2").tag(KCRelayProvider.max2.rawValue)
+                        Text("Yandex").tag(KCRelayProvider.yandex.rawValue)
+                    }
+                    .pickerStyle(.segmented)
+                    .disabled(tunnel.status == .connected || tunnel.status == .connecting)
+
+                    if selectedRelay == .max1 || selectedRelay == .max2 {
+                        SecureField("MAX token", text: $maxToken)
+                            .textFieldStyle(.roundedBorder)
+                        TextField("MAX ID · профиль 1", text: $maxCalleeUID)
+                            .textFieldStyle(.roundedBorder)
+                        TextField("MAX ID · профиль 2", text: $max2CalleeUID)
+                            .textFieldStyle(.roundedBorder)
+                    }
+
+                    if selectedRelay == .yandex {
+                        TextField("Ссылка Yandex Telemost", text: $yandexTelemostLink)
+                            .textFieldStyle(.roundedBorder)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                    }
+
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(selectedRelay.isExperimental ? Color.orange : Color.green)
+                            .frame(width: 7, height: 7)
+                        Text(selectedRelay.isExperimental
+                             ? "Маршрут экспериментальный до проверки на физическом iPhone"
+                             : "VK — основной проверенный маршрут")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(12)
+                .background(kcPanel)
+                .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 15, style: .continuous).stroke(kcOutline, lineWidth: 1))
+
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Настроенные маршруты").font(.headline)
                     ForEach(store.servers) { server in
