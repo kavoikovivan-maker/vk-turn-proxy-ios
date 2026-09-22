@@ -46,6 +46,9 @@ type Config struct {
 	// credentials so the first conn establishes immediately without
 	// hitting VK's API. Used by the pre-bootstrap captcha flow.
 	SeededTURN *TURNCreds
+	// ExternalTURNOnly keeps the credential pool on the provider-neutral
+	// seeded TURN set (MAX/Yandex) and prevents fallback to VK credential APIs.
+	ExternalTURNOnly bool
 	// CredCachePath is the on-disk JSON file the credPool uses to persist
 	// fetched credentials across extension launches. Empty disables
 	// persistence. Typically set to "<App Group container>/creds-pool.json"
@@ -2315,7 +2318,16 @@ func (p *Proxy) wakeChannelFor(err error) <-chan struct{} {
 func (p *Proxy) fetchFreshCreds(allowCaptchaBlock bool, slot int) (string, *TURNCreds, error) {
 	var creds *TURNCreds
 
-	if cookieAuthEnabled.Load() {
+	if p.config.ExternalTURNOnly {
+		if p.config.SeededTURN == nil || p.config.SeededTURN.Address == "" {
+			return "", nil, fmt.Errorf("external TURN credentials missing")
+		}
+		seed := *p.config.SeededTURN
+		if len(seed.Addresses) == 0 {
+			seed.Addresses = []string{seed.Address}
+		}
+		creds = &seed
+	} else if cookieAuthEnabled.Load() {
 		// Cookie (VKAuth) mode: this pool slot maps to a stable (call, relay) so
 		// conns spread across relays — each (okcdn_userid, relay) is its own ~10
 		// allocation quota (2026-06-28 finding). No captcha bookkeeping here.
