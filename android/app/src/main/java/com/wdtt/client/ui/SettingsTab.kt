@@ -240,6 +240,21 @@ fun SettingsTabContent(
     val goDnsCustomStored by settingsStore.goDnsCustom.collectAsStateWithLifecycle(initialValue = "")
     val goDnsDohCustomStored by settingsStore.goDnsDohCustom.collectAsStateWithLifecycle(initialValue = "")
     val obfsMode by settingsStore.obfsMode.collectAsStateWithLifecycle(initialValue = "audio")
+    val relayProvider by settingsStore.relayProvider.collectAsStateWithLifecycle(initialValue = "vk")
+    val maxTokenStored by settingsStore.maxToken.collectAsStateWithLifecycle(initialValue = "")
+    val maxCalleeUidStored by settingsStore.maxCalleeUid.collectAsStateWithLifecycle(initialValue = "")
+    val max2CalleeUidStored by settingsStore.max2CalleeUid.collectAsStateWithLifecycle(initialValue = "")
+    val yandexTelemostLinkStored by settingsStore.yandexTelemostLink.collectAsStateWithLifecycle(initialValue = "")
+    var maxTokenInput by rememberSaveable { mutableStateOf("") }
+    var maxCalleeUidInput by rememberSaveable { mutableStateOf("") }
+    var max2CalleeUidInput by rememberSaveable { mutableStateOf("") }
+    var yandexTelemostLinkInput by rememberSaveable { mutableStateOf("") }
+    LaunchedEffect(maxTokenStored) { if (maxTokenInput != maxTokenStored) maxTokenInput = maxTokenStored }
+    LaunchedEffect(maxCalleeUidStored) { if (maxCalleeUidInput != maxCalleeUidStored) maxCalleeUidInput = maxCalleeUidStored }
+    LaunchedEffect(max2CalleeUidStored) { if (max2CalleeUidInput != max2CalleeUidStored) max2CalleeUidInput = max2CalleeUidStored }
+    LaunchedEffect(yandexTelemostLinkStored) {
+        if (yandexTelemostLinkInput != yandexTelemostLinkStored) yandexTelemostLinkInput = yandexTelemostLinkStored
+    }
     val interfaceRole by settingsStore.interfaceRole.collectAsStateWithLifecycle(initialValue = "admin")
     LaunchedEffect(socksPort) {
         socksPortInput = socksPort.toString()
@@ -451,8 +466,14 @@ fun SettingsTabContent(
     val scrollState = rememberScrollState()
 
     val isPeerValid = peerInput.isNotBlank()
-    val isHashesValid = combinedHashes.isNotBlank()
-    val isValid = isPeerValid && isHashesValid && savedConnectionPassword.isNotBlank() && !hasInputHashErrors
+    val isRelayValid = when (relayProvider) {
+        "max1" -> maxTokenInput.isNotBlank() && maxCalleeUidInput.isNotBlank()
+        "max2" -> maxTokenInput.isNotBlank() &&
+            (max2CalleeUidInput.isNotBlank() || maxCalleeUidInput.isNotBlank())
+        "yandex" -> yandexTelemostLinkInput.isNotBlank()
+        else -> combinedHashes.isNotBlank() && !hasInputHashErrors
+    }
+    val isValid = isPeerValid && isRelayValid && savedConnectionPassword.isNotBlank()
     val effectiveServerDtlsPort = if (manualPortsEnabled) serverDtlsPortInput.toIntOrNull()?.coerceIn(1, 65535) ?: 56000 else 56000
     val effectiveLocalPort = if (manualPortsEnabled) portInput.toIntOrNull()?.coerceIn(1, 65535) ?: 9000 else 9000
     fun startTunnelService() {
@@ -461,7 +482,11 @@ fun SettingsTabContent(
         val hashesList = combinedHashes.split(Regex("[,\\s\\n]+")).filter { it.isNotBlank() && it.length >= 16 }.distinct()
         val hashesCount = hashesList.size.coerceAtLeast(1)
         val maxW = SettingsStore.maxAnonymousWorkers(hashesCount)
-        val finalWorkers = workersInput.toInt().coerceIn(9, maxW)
+        val finalWorkers = if (relayProvider == "vk") {
+            workersInput.toInt().coerceIn(9, maxW)
+        } else {
+            workersInput.toInt().coerceIn(1, 4)
+        }
         val host = PeerAddress.host(peerInput.trim())
         val peerForTunnel = PeerAddress.ensurePort(host, effectiveServerDtlsPort)
         saveJob?.cancel()
@@ -475,6 +500,13 @@ fun SettingsTabContent(
             settingsStore.saveCaptchaMode(effectiveCaptchaMode)
             settingsStore.saveCaptchaSolveMethod(effectiveCaptchaSolveMethod)
             settingsStore.saveVkAnonPath(effectiveVkAnonPath)
+            settingsStore.saveRelaySettings(
+                relayProvider,
+                maxTokenInput,
+                maxCalleeUidInput,
+                max2CalleeUidInput,
+                yandexTelemostLinkInput,
+            )
             val effectiveGoDns = settingsStore.resolveGoDnsArg()
             val intent = Intent(context, TunnelService::class.java).apply {
                 action = "START"
@@ -493,6 +525,11 @@ fun SettingsTabContent(
                 putExtra("obfs_mode", obfsMode)
                 putExtra("connection_mode", connectionMode)
                 putExtra("socks_port", SettingsStore.normalizeSocksPort(socksPortInput.toIntOrNull() ?: socksPort))
+                putExtra("relay_provider", relayProvider)
+                putExtra("max_token", maxTokenInput)
+                putExtra("max_callee_uid", maxCalleeUidInput)
+                putExtra("max2_callee_uid", max2CalleeUidInput)
+                putExtra("yandex_telemost_link", yandexTelemostLinkInput)
             }
             if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(intent)
             else context.startService(intent)
@@ -1065,6 +1102,35 @@ fun SettingsTabContent(
                         "Сеть",
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.primary
+                    )
+
+                    RelayProviderSettingsSection(
+                        provider = relayProvider,
+                        maxToken = maxTokenInput,
+                        maxCalleeUid = maxCalleeUidInput,
+                        max2CalleeUid = max2CalleeUidInput,
+                        yandexLink = yandexTelemostLinkInput,
+                        tunnelRunning = tunnelRunning,
+                        onProviderChange = { value ->
+                            scope.launch {
+                                settingsStore.saveRelaySettings(
+                                    value, maxTokenInput, maxCalleeUidInput,
+                                    max2CalleeUidInput, yandexTelemostLinkInput
+                                )
+                            }
+                        },
+                        onMaxTokenChange = { maxTokenInput = it },
+                        onMaxCalleeChange = { maxCalleeUidInput = it },
+                        onMax2CalleeChange = { max2CalleeUidInput = it },
+                        onYandexLinkChange = { yandexTelemostLinkInput = it },
+                        onSave = {
+                            scope.launch {
+                                settingsStore.saveRelaySettings(
+                                    relayProvider, maxTokenInput, maxCalleeUidInput,
+                                    max2CalleeUidInput, yandexTelemostLinkInput
+                                )
+                            }
+                        }
                     )
 
                     GoDnsSettingsSection(
@@ -2804,6 +2870,95 @@ private fun PaletteCircleOption(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+@Composable
+private fun RelayProviderSettingsSection(
+    provider: String,
+    maxToken: String,
+    maxCalleeUid: String,
+    max2CalleeUid: String,
+    yandexLink: String,
+    tunnelRunning: Boolean,
+    onProviderChange: (String) -> Unit,
+    onMaxTokenChange: (String) -> Unit,
+    onMaxCalleeChange: (String) -> Unit,
+    onMax2CalleeChange: (String) -> Unit,
+    onYandexLinkChange: (String) -> Unit,
+    onSave: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("K&C Smart Route", fontWeight = FontWeight.SemiBold)
+        Text(
+            "Источник TURN: VK, два профиля MAX или Yandex Telemost. " +
+                "Авто-режим сможет переключать только настроенные маршруты.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            listOf("vk" to "VK", "max1" to "Max 1", "max2" to "Max 2", "yandex" to "Yandex")
+                .forEach { (value, label) ->
+                    FilterChip(
+                        selected = provider == value,
+                        onClick = { if (!tunnelRunning) onProviderChange(value) },
+                        label = { Text(label) },
+                        enabled = !tunnelRunning,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+        }
+        AnimatedVisibility(visible = provider == "max1" || provider == "max2") {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = maxToken,
+                    onValueChange = onMaxTokenChange,
+                    label = { Text("MAX token") },
+                    enabled = !tunnelRunning,
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = maxCalleeUid,
+                    onValueChange = onMaxCalleeChange,
+                    label = { Text("MAX ID · профиль 1") },
+                    enabled = !tunnelRunning,
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = max2CalleeUid,
+                    onValueChange = onMax2CalleeChange,
+                    label = { Text("MAX ID · профиль 2") },
+                    enabled = !tunnelRunning,
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+        AnimatedVisibility(visible = provider == "yandex") {
+            OutlinedTextField(
+                value = yandexLink,
+                onValueChange = onYandexLinkChange,
+                label = { Text("Ссылка Yandex Telemost") },
+                placeholder = { Text("https://telemost.yandex.ru/j/...") },
+                enabled = !tunnelRunning,
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+        if (provider != "vk") {
+            Button(
+                onClick = onSave,
+                enabled = !tunnelRunning,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Сохранить маршрут")
+            }
+        }
+    }
+}
+
 private fun GoDnsSettingsSection(
     goDnsPreset: String,
     goDnsCustomInput: String,
