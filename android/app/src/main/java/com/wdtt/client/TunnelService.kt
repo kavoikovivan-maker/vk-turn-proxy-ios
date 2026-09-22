@@ -127,6 +127,16 @@ class TunnelService : Service() {
                             socksPort = socksPort,
                             noDtls = noDtlsEnabled,
                             turnTcp = store.turnTcpEnabled.first(),
+                            relayProvider = intent.getStringExtra("relay_provider")?.takeIf { it.isNotEmpty() }
+                                ?: store.relayProvider.first(),
+                            maxToken = intent.getStringExtra("max_token")?.takeIf { it.isNotEmpty() }
+                                ?: store.maxToken.first(),
+                            maxCalleeUid = intent.getStringExtra("max_callee_uid")?.takeIf { it.isNotEmpty() }
+                                ?: store.maxCalleeUid.first(),
+                            max2CalleeUid = intent.getStringExtra("max2_callee_uid")?.takeIf { it.isNotEmpty() }
+                                ?: store.max2CalleeUid.first(),
+                            yandexTelemostLink = intent.getStringExtra("yandex_telemost_link")?.takeIf { it.isNotEmpty() }
+                                ?: store.yandexTelemostLink.first(),
                             detailedLogs = store.detailedLogs.first()
                         )
                         launch(Dispatchers.Main) {
@@ -204,9 +214,21 @@ class TunnelService : Service() {
                     socksPort = SettingsStore.normalizeSocksPort(store.socksPort.first()),
                     noDtls = noDtlsEnabled,
                     turnTcp = store.turnTcpEnabled.first(),
+                    relayProvider = store.relayProvider.first(),
+                    maxToken = store.maxToken.first(),
+                    maxCalleeUid = store.maxCalleeUid.first(),
+                    max2CalleeUid = store.max2CalleeUid.first(),
+                    yandexTelemostLink = store.yandexTelemostLink.first(),
                     detailedLogs = store.detailedLogs.first()
                 )
-                if (params.peer.isNotEmpty() && params.vkHashes.isNotEmpty()) {
+                val relayReady = when (params.relayProvider.lowercase()) {
+                    "max1" -> params.maxToken.isNotBlank() && params.maxCalleeUid.isNotBlank()
+                    "max2" -> params.maxToken.isNotBlank() &&
+                        (params.max2CalleeUid.isNotBlank() || params.maxCalleeUid.isNotBlank())
+                    "yandex" -> params.yandexTelemostLink.isNotBlank()
+                    else -> params.vkHashes.isNotBlank()
+                }
+                if (params.peer.isNotEmpty() && relayReady) {
                     launch(Dispatchers.Main) {
                         startTunnel(params)
                     }
