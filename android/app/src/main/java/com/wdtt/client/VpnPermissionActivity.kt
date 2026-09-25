@@ -14,7 +14,12 @@ class VpnPermissionActivity : ComponentActivity() {
     private val vpnPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) {
-        openMainActivityAndFinish()
+        if (VpnService.prepare(this) == null) {
+            TunnelControl.startFromSavedSettings(applicationContext)
+            finish()
+        } else {
+            openMainActivityAndFinish()
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -23,7 +28,8 @@ class VpnPermissionActivity : ComponentActivity() {
 
         val permissionIntent = runCatching { VpnService.prepare(this) }.getOrNull()
         if (permissionIntent == null) {
-            openMainActivityAndFinish()
+            TunnelControl.startFromSavedSettings(applicationContext)
+            finish()
         } else {
             vpnPermissionLauncher.launch(permissionIntent)
         }
