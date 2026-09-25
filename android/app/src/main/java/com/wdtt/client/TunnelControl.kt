@@ -23,6 +23,11 @@ object TunnelControl {
             val store = SettingsStore(appContext)
             val basePeer = store.peer.first()
             val hashes = store.vkHashes.first()
+            val relayProvider = store.relayProvider.first()
+            val maxToken = store.maxToken.first()
+            val maxCalleeUid = store.maxCalleeUid.first()
+            val max2CalleeUid = store.max2CalleeUid.first()
+            val yandexTelemostLink = store.yandexTelemostLink.first()
             val workers = store.workersPerHash.first()
             val port = store.listenPort.first()
             val password = store.connectionPassword.first()
@@ -37,7 +42,19 @@ object TunnelControl {
             val serverDtlsPort = if (manualPortsEnabled) store.serverDtlsPort.first() else 56000
             val peerWithPort = if (basePeer.isBlank()) basePeer else PeerAddress.ensurePort(basePeer, serverDtlsPort)
 
-            if (peerWithPort.isBlank() || hashes.isBlank() || password.isBlank()) {
+            val relayReady = when (relayProvider.lowercase()) {
+                "auto" -> hashes.isNotBlank() ||
+                    (maxToken.isNotBlank() &&
+                        (maxCalleeUid.isNotBlank() || max2CalleeUid.isNotBlank())) ||
+                    yandexTelemostLink.isNotBlank()
+                "max1" -> maxToken.isNotBlank() && maxCalleeUid.isNotBlank()
+                "max2" -> maxToken.isNotBlank() &&
+                    (max2CalleeUid.isNotBlank() || maxCalleeUid.isNotBlank())
+                "yandex" -> yandexTelemostLink.isNotBlank()
+                else -> hashes.isNotBlank()
+            }
+
+            if (peerWithPort.isBlank() || !relayReady || password.isBlank()) {
                 return@launch
             }
 
@@ -57,6 +74,11 @@ object TunnelControl {
                 putExtra("obfs_mode", obfsMode)
                 putExtra("connection_mode", connectionMode)
                 putExtra("socks_port", socksPort)
+                putExtra("relay_provider", relayProvider)
+                putExtra("max_token", maxToken)
+                putExtra("max_callee_uid", maxCalleeUid)
+                putExtra("max2_callee_uid", max2CalleeUid)
+                putExtra("yandex_telemost_link", yandexTelemostLink)
             }
 
             withContext(Dispatchers.Main) {
