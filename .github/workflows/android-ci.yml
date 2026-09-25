@@ -61,7 +61,13 @@ jobs:
           APK="app/build/outputs/apk/debug/KC-VPN-universal.apk"
           test -s "$APK"
           unzip -t "$APK" >/dev/null
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
+          BADGING="$("$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK")"
+          echo "$BADGING" | grep -F "package: name='com.kavoikov.kcvpn'"
+          echo "$BADGING" | grep -F "application-label:'K&C VPN'"
+          unzip -l "$APK" | grep -F "lib/arm64-v8a/libclient.so"
+          unzip -l "$APK" | grep -F "lib/armeabi-v7a/libclient.so"
+          unzip -l "$APK" | grep -F "lib/x86_64/libclient.so"
 
       - name: Stage universal APK
         run: cp app/build/outputs/apk/debug/KC-VPN-universal.apk ../KC-VPN-Android.apk
