@@ -222,6 +222,10 @@ class TunnelService : Service() {
                     detailedLogs = store.detailedLogs.first()
                 )
                 val relayReady = when (params.relayProvider.lowercase()) {
+                    "auto" -> params.vkHashes.isNotBlank() ||
+                        (params.maxToken.isNotBlank() &&
+                            (params.maxCalleeUid.isNotBlank() || params.max2CalleeUid.isNotBlank())) ||
+                        params.yandexTelemostLink.isNotBlank()
                     "max1" -> params.maxToken.isNotBlank() && params.maxCalleeUid.isNotBlank()
                     "max2" -> params.maxToken.isNotBlank() &&
                         (params.max2CalleeUid.isNotBlank() || params.maxCalleeUid.isNotBlank())
