@@ -108,7 +108,7 @@ fun InfoTab() {
                         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)
                     ) {
                         Text(
-                            text = "qWDTT",
+                            text = "K&C VPN",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
